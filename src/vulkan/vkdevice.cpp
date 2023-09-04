@@ -29,6 +29,8 @@
 #include "UniformBuffer.h"
 #include "DescriptorSet.h"
 #include "Textures.h"
+#include "SwapChain.h"
+#include "CommandBuffer.h"
 
 namespace rw
 {
@@ -84,7 +86,7 @@ namespace rw
 
 		static maple::UniformBuffer::Ptr ubo_state, ubo_scene, ubo_object;
 
-		static maple::DescriptorSet::Ptr commonSet;
+		std::shared_ptr <maple::DescriptorSet> commonSet;
 
 		static GLuint        whitetex;
 		static UniformState  uniformState;
@@ -832,11 +834,13 @@ namespace rw
 			{
 				ubo_object->setData(&uniformObject);
 				objectDirty = 0;
+				commonSet->setBuffer("Object", ubo_object);
 			}
 			if (sceneDirty)
 			{
 				ubo_scene->setData(&uniformScene);
 				sceneDirty = 0;
+				commonSet->setBuffer("Scene", ubo_scene);
 			}
 			if (stateDirty) {
 				switch (alphaFunc) {
@@ -860,7 +864,9 @@ namespace rw
 				uniformState.fogRange = 1.0f / (rwStateCache.fogStart - rwStateCache.fogEnd);
 				ubo_state->setData(&uniformState);
 				stateDirty = 0;
+				commonSet->setBuffer("State", ubo_state);
 			}
+
 		}
 
 		static void setFrameBuffer(Camera* cam)
@@ -915,7 +921,6 @@ namespace rw
 
 		static void beginUpdate(Camera* cam)
 		{
-			maple::RenderDevice::get()->begin();
 
 			float view[16], proj[16];
 			// View Matrix
@@ -1006,7 +1011,24 @@ namespace rw
 
 		static void clearCamera(Camera* cam, RGBA* col, uint32 mode)
 		{
+			maple::RenderDevice::get()->begin();
 
+			VulkanRaster* natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
+			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
+
+			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
+			/*if (cmdBuffer != nullptr) 
+			{
+				cmdBuffer->addTask([=](const maple::CommandBuffer* command) {
+					maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), command, { 1,1,1,1 });
+					if (natras2->textureId == -1)
+					{
+						maple::RenderDevice::get()->clearRenderTarget(
+							maple::GraphicsContext::get()->getSwapChain()->getCurrentImage()
+							, command, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f });
+					}
+				});
+			}*/
 		}
 
 		static void showRaster(Raster* raster, uint32 flags)

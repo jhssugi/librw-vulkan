@@ -353,13 +353,12 @@ namespace rw
 			maple::TextureFormat internalFormat;
 			int32 bpp;        // bytes per pixel
 			// texture object
-			int32_t textureId;
-
 			bool isCompressed;
 			bool hasAlpha;
 			bool autogenMipmap;
 			int8 numLevels;
 			int32 maxAnisotropy;
+			int32_t textureId = -1;
 		};
 
 		struct VulkanCaps

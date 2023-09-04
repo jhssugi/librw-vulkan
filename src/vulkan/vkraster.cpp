@@ -300,6 +300,7 @@ namespace rw
 		{
 			VulkanRaster* ras = PLUGINOFFSET(VulkanRaster, object, offset);
 			memset(ras, 0, sizeof(VulkanRaster));
+			ras->textureId = -1;
 			return object;
 		}
 

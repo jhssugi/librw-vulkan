@@ -77,8 +77,10 @@ workspace "librw"
 	filter {}
 
 	filter "configurations:Debug"
-		defines { "DEBUG" }
+		defines { "DEBUG", "_DEBUG" }
 		symbols "On"
+		optimize "Off"
+		
 	filter "configurations:Release*"
 		defines { "NDEBUG" }
 		optimize "On"
@@ -177,7 +179,6 @@ project "librw"
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
 	filter { "platforms:*vulkan" }
-		generateSpirV("src/vulkan/vkshaders")
 		includedirs { "tools/spdlog/include" }
 		sysincludedirs { "tools/libRHI"}		
 		links { "libRHI" }

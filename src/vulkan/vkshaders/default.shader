@@ -7,6 +7,7 @@
 
 layout(location = 0) in vec3 in_pos;
 layout(location = 1) in vec3 in_normal;
+
 layout(location = 2) in vec4 in_color;
 layout(location = 3) in vec4 in_weights;
 layout(location = 4) in vec4 in_indices;
@@ -110,12 +111,14 @@ void main(void)
 	vec4 Vertex = u_world * vec4(in_pos, 1.0);
 	gl_Position = u_proj * u_view * Vertex;
 	vec3 Normal = mat3(u_world) * in_normal;
+
 	v_tex0 = in_tex0;
 	v_color = in_color;
 	v_color.rgb += u_ambLight.rgb*surfAmbient;
 	v_color.rgb += DoDynamicLight(Vertex.xyz, Normal)*surfDiffuse;
 	v_color = clamp(v_color, 0.0, 1.0);
 	v_color *= u_matColor;
+
 	v_fog = DoFog(gl_Position.w);
 }
 
@@ -126,13 +129,6 @@ layout(set = 0, binding = 0, std140) uniform State
 	vec2 u_alphaRef;
 	vec4 u_fogData;
 	vec4 u_fogColor;
-};
-
-
-layout(set = 1, binding = 0, std140) uniform Material
-{
-	vec4 u_matColor;
-	vec4 u_surfProps;	// amb, spec, diff, extra	
 };
 
 layout(set = 1, binding = 1) uniform sampler2D tex0;

@@ -105,7 +105,7 @@ namespace rw
 				inst->program = 0;
 				inst->offset = offset;
 				memcpy((uint8*)header->indexBuffer + inst->offset, mesh->indices, inst->numIndex * 2);
-				offset += inst->numIndex * 2;
+				offset += inst->numIndex;// *2;
 				mesh++;
 				inst++;
 			}

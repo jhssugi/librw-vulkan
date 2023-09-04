@@ -3,6 +3,7 @@ namespace maple
 {
 	class TextureDepth;
 	class Texture2D;
+	class DescriptorSet;
 }
 
 namespace rw
@@ -62,6 +63,7 @@ namespace rw
 		};
 
 		extern VkGlobals vkGlobals;
+		extern std::shared_ptr <maple::DescriptorSet> commonSet;
 #endif
 
 		Raster* rasterCreate(Raster* raster);

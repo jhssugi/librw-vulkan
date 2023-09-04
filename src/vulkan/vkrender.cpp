@@ -23,7 +23,9 @@
 #	include "Textures.h"
 #	include "GraphicsContext.h"
 #	include "SwapChain.h"
-
+#	include "VertexBuffer.h"
+#	include "IndexBuffer.h"
+#	include "RenderDevice.h"
 namespace rw
 {
 	namespace vulkan
@@ -32,10 +34,10 @@ namespace rw
 
 		static maple::Pipeline::Ptr currentPipeline = nullptr;
 
-		maple::Pipeline::Ptr getPipeline()
+		maple::Pipeline::Ptr getPipeline(uint32_t stride)
 		{
 			maple::PipelineInfo info;
-
+			info.vertexStride = stride;
 			int32_t srcBlend = rw::GetRenderState(rw::SRCBLEND);
 			int32_t dstBlend = rw::GetRenderState(rw::DESTBLEND);
 			int32_t zTest = rw::GetRenderState(rw::ZTESTENABLE);
@@ -47,12 +49,17 @@ namespace rw
 			info.colorTargets[0] = vkGlobals.colorTarget;
 			info.depthFunc = zTest ? maple::StencilType::LessOrEqual : maple::StencilType::Always;
 			info.swapChainTarget = info.colorTargets[0] == nullptr;
+			
 
 			if (cullMode == rw::CULLNONE) 
 			{
 				info.cullMode = maple::CullMode::None;
 			}
 			else if (cullMode == rw::CULLBACK) 
+			{
+				info.cullMode = maple::CullMode::Back;
+			}
+			else if(cullMode == 0)
 			{
 				info.cullMode = maple::CullMode::Back;
 			}
@@ -67,7 +74,8 @@ namespace rw
 			}
 			else
 			{
-				MAPLE_ASSERT(false, "TODO.");
+				info.blendMode = maple::BlendMode::SrcAlphaOneMinusSrcAlpha;
+//				MAPLE_ASSERT(false, "TODO.");
 			}
 			return maple::Pipeline::get(info);
 		}
@@ -75,18 +83,27 @@ namespace rw
 		void drawInst_simple(InstanceDataHeader *header, InstanceData *inst)
 		{
 			flushCache();
-			auto pipeline = getPipeline();
+			auto pipeline = getPipeline(header->attribDesc[0].stride);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-			
+			header->vertexBufferGPU->bind(cmdBuffer, pipeline.get());
+			header->indexBufferGPU->bind(cmdBuffer);
+
+			commonSet->update(cmdBuffer);
+			getMaterialDescriptorSet(inst->material)->update(cmdBuffer);
+
 			if (pipeline != currentPipeline)
 			{
 				if (currentPipeline != nullptr) 
 				{
 					currentPipeline->end(cmdBuffer);
-					currentPipeline = pipeline;
 				}
+				currentPipeline = pipeline;
 				pipeline->bind(cmdBuffer);
 			}
+
+			maple::RenderDevice::get()->bindDescriptorSet(pipeline.get(), cmdBuffer, 0, commonSet);
+			maple::RenderDevice::get()->bindDescriptorSet(pipeline.get(), cmdBuffer, 1, getMaterialDescriptorSet(inst->material));
+			pipeline->drawIndexed(cmdBuffer, inst->numIndex, 1, inst->offset, 0, 0);
 		}
 
 		// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
