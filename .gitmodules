@@ -1,3 +1,0 @@
-[submodule "tools/libRHI"]
-	path = tools/libRHI
-	url = https://github.com/flwmxd/libRHI
