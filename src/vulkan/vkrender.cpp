@@ -47,9 +47,8 @@ namespace rw
 			info.shader = getShader(currentShader->shaderId);
 			info.depthTarget = vkGlobals.currentDepth;
 			info.colorTargets[0] = vkGlobals.colorTarget;
-			info.depthFunc = zTest ? maple::StencilType::LessOrEqual : maple::StencilType::Always;
+			info.depthFunc = maple::StencilType::LessOrEqual;//zTest ? maple::StencilType::LessOrEqual : maple::StencilType::Always;
 			info.swapChainTarget = info.colorTargets[0] == nullptr;
-			
 
 			if (cullMode == rw::CULLNONE) 
 			{
@@ -82,14 +81,15 @@ namespace rw
 
 		void drawInst_simple(InstanceDataHeader *header, InstanceData *inst)
 		{
-			flushCache();
+			auto set = getMaterialDescriptorSet(inst->material);
 			auto pipeline = getPipeline(header->attribDesc[0].stride);
+			flushCache(pipeline->getShader());
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
 			header->vertexBufferGPU->bind(cmdBuffer, pipeline.get());
 			header->indexBufferGPU->bind(cmdBuffer);
 
 			commonSet->update(cmdBuffer);
-			getMaterialDescriptorSet(inst->material)->update(cmdBuffer);
+			set->update(cmdBuffer);
 
 			if (pipeline != currentPipeline)
 			{
@@ -99,10 +99,10 @@ namespace rw
 				}
 				currentPipeline = pipeline;
 				pipeline->bind(cmdBuffer);
+				pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
 			}
 
-			maple::RenderDevice::get()->bindDescriptorSet(pipeline.get(), cmdBuffer, 0, commonSet);
-			maple::RenderDevice::get()->bindDescriptorSet(pipeline.get(), cmdBuffer, 1, getMaterialDescriptorSet(inst->material));
+			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { commonSet ,set });
 			pipeline->drawIndexed(cmdBuffer, inst->numIndex, 1, inst->offset, 0, 0);
 		}
 

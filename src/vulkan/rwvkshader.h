@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 namespace maple 
 {
@@ -70,7 +71,7 @@ namespace rw
 			static Shader* create(const std::string & vert,
 				const char* userDefine,
 				const std::string& frag,
-				const char* fragUserDefine);
+				const char* fragUserDefine, const std::unordered_set<std::string>& dynamics = {});
 
 			void use(void);
 			void destroy(void);

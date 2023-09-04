@@ -95,8 +95,8 @@ namespace rw
 				assert(inst->minVert != 0xFFFFFFFF);
 				inst->numIndex = mesh->numIndices;
 				inst->material = mesh->material;
-				
-				if (descriptorSets.find(inst->material) == descriptorSets.end()) 
+
+				if (descriptorSets.find(inst->material) == descriptorSets.end())
 				{
 					descriptorSets[inst->material] = maple::DescriptorSet::create({ 1, getShader(defaultShader->shaderId).get() });
 				}
@@ -104,7 +104,7 @@ namespace rw
 				inst->vertexAlpha = 0;
 				inst->program = 0;
 				inst->offset = offset;
-				memcpy((uint8*)header->indexBuffer + inst->offset, mesh->indices, inst->numIndex * 2);
+				memcpy(header->indexBuffer + inst->offset, mesh->indices, inst->numIndex * sizeof(uint16_t));
 				offset += inst->numIndex;// *2;
 				mesh++;
 				inst++;
@@ -184,11 +184,53 @@ namespace rw
 			return pipe;
 		}
 
+		bool setVertexClor(int type, uint8* dst, RGBA* src, uint32 numVertices, uint32 stride)
+		{
+			uint8 alpha = 0xFF;
+		
+			if (type == VERT_ARGB) 
+			{
+				for (uint32 i = 0; i < numVertices; i++) {
+					float* floatDst = reinterpret_cast<float*>(dst);
+					floatDst[0] = src == nullptr ? 1.f : src->blue / 255.f;
+					floatDst[1] = src == nullptr ? 1.f : src->green / 255.f;
+					floatDst[2] = src == nullptr ? 1.f : src->red / 255.f;
+					floatDst[3] = src == nullptr ? 1.f : src->alpha / 255.f;
+
+					alpha &= src == nullptr ? 0xFF : src->alpha;
+					dst += stride;
+					if (src != nullptr) 
+						src++;
+				}
+			}
+			else if (type == VERT_RGBA)
+			{
+				for (uint32 i = 0; i < numVertices; i++)
+				{
+					float* floatDst = reinterpret_cast<float*>(dst);
+					floatDst[0] = src == nullptr ? 1.f : src->blue / 255.f;
+					floatDst[1] = src == nullptr ? 1.f : src->green / 255.f;
+					floatDst[2] = src == nullptr ? 1.f : src->red / 255.f;
+					floatDst[3] = src == nullptr ? 1.f : src->alpha / 255.f;
+
+					alpha &= src == nullptr ? 0xFF : src->alpha;
+					dst += stride;
+
+					if (src != nullptr)
+						src++;
+				}
+			}
+			else
+				assert(0 && "unsupported color type");
+			return alpha != 0xFF;
+		}
+
+
 		void defaultInstanceCB(Geometry* geo, InstanceDataHeader* header, bool32 reinstance)
 		{
 			AttribDesc* attribs, * a;
 
-			bool isPrelit = !!(geo->flags & Geometry::PRELIT);
+			bool isPrelit = true;//!!(geo->flags & Geometry::PRELIT);
 			bool hasNormals = !!(geo->flags & Geometry::NORMALS);
 
 			if (!reinstance)
@@ -206,7 +248,6 @@ namespace rw
 				a->index = ATTRIB_POS;
 				a->size = 3;
 				a->type = GL_FLOAT;
-				a->normalized = false;
 				a->offset = stride;
 				stride += 12;
 				a++;
@@ -218,7 +259,6 @@ namespace rw
 					a->index = ATTRIB_NORMAL;
 					a->size = 3;
 					a->type = GL_FLOAT;
-					a->normalized = false;
 					a->offset = stride;
 					stride += 12;
 					a++;
@@ -229,12 +269,13 @@ namespace rw
 				{
 					a->index = ATTRIB_COLOR;
 					a->size = 4;
-					a->type = GL_UNSIGNED_BYTE;
-					a->normalized = true;
+					a->type = GL_FLOAT;
 					a->offset = stride;
-					stride += 4;
+					stride += 16;
 					a++;
 				}
+
+				geo->numTexCoordSets = std::max(geo->numTexCoordSets, 1);
 
 				// Texture coordinates
 				for (int32 n = 0; n < geo->numTexCoordSets; n++)
@@ -242,7 +283,6 @@ namespace rw
 					a->index = ATTRIB_TEXCOORDS0 + n;
 					a->size = 2;
 					a->type = GL_FLOAT;
-					a->normalized = false;
 					a->offset = stride;
 					stride += 8;
 					a++;
@@ -253,8 +293,7 @@ namespace rw
 					a->stride = stride;
 
 				header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
-				memcpy(header->attribDesc, tmpAttribs,
-					header->numAttribs * sizeof(AttribDesc));
+				memcpy(header->attribDesc, tmpAttribs, header->numAttribs * sizeof(AttribDesc));
 				//
 				// Allocate vertex buffer
 				//
@@ -300,10 +339,11 @@ namespace rw
 				while (n--)
 				{
 					assert(inst->minVert != 0xFFFFFFFF);
-					inst->vertexAlpha = instColor(VERT_RGBA,
-						verts + a->offset + a->stride * inst->minVert,
-						geo->colors + inst->minVert,
-						inst->numVertices, a->stride);
+					inst->vertexAlpha = setVertexClor(VERT_RGBA, 
+						verts + a->offset + a->stride * inst->minVert, 
+						geo->colors == nullptr ? nullptr : geo->colors + inst->minVert, 
+						inst->numVertices,
+						a->stride);
 					inst++;
 				}
 			}

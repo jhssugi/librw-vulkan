@@ -16,6 +16,7 @@ namespace maple
 	class VertexBuffer;
 	class IndexBuffer;
 	class DescriptorSet;
+	class Shader;
 }
 
 namespace rw
@@ -39,7 +40,6 @@ namespace rw
 		{
 			uint32 index;
 			int32  type;
-			bool normalized;
 			int32  size;
 			uint32 stride;
 			uint32 offset;
@@ -316,7 +316,7 @@ namespace rw
 		void   bindFramebuffer(uint32 fbo);
 		uint32 bindTexture(uint32 texid);
 
-		void flushCache(void);
+		void flushCache(std::shared_ptr<maple::Shader> shader);
 
 		class ObjPipeline : public rw::ObjPipeline
 		{

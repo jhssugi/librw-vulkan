@@ -31,6 +31,7 @@
 #include "Textures.h"
 #include "SwapChain.h"
 #include "CommandBuffer.h"
+#include "Shader.h"
 
 namespace rw
 {
@@ -67,9 +68,10 @@ namespace rw
 
 #	define MAX_LIGHTS 8
 
+		static RawMatrix world;
+		
 		struct UniformObject
 		{
-			RawMatrix world;
 			RGBAf     ambLight;
 			struct
 			{
@@ -728,7 +730,7 @@ namespace rw
 
 		void setWorldMatrix(Matrix* mat)
 		{
-			convMatrix(&uniformObject.world, mat);
+			convMatrix(&world, mat);
 			objectDirty = 1;
 		}
 
@@ -818,31 +820,42 @@ namespace rw
 
 		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp)
 		{
-			rw::RGBAf col;
-			convColor(&col, &color);
-			float surfProps[4];
-			surfProps[0] = surfaceprops.ambient;
-			surfProps[1] = surfaceprops.specular;
-			surfProps[2] = surfaceprops.diffuse;
-			surfProps[3] = extraSurfProp;
-			sets->setUniformBufferData("Material", &surfProps);
+			struct {
+				rw::RGBAf col;
+				float surfProps[4];
+			}uniform;
+			convColor(&uniform.col, &color);
+			uniform.surfProps[0] = surfaceprops.ambient;
+			uniform.surfProps[1] = surfaceprops.specular;
+			uniform.surfProps[2] = surfaceprops.diffuse;
+			uniform.surfProps[3] = extraSurfProp;
+			sets->setUniformBufferData("Material", &uniform);
 		}
 
-		void flushCache(void)
+		void flushCache(std::shared_ptr<maple::Shader> shader)
 		{
 			if (objectDirty)
 			{
 				ubo_object->setData(&uniformObject);
 				objectDirty = 0;
-				commonSet->setBuffer("Object", ubo_object);
+				commonSet->setUniformBufferData("Object", &uniformObject);
+				//TODO..it should be per object....
 			}
+			
+			if (auto consts = shader->getPushConstant(0))
+			{
+				consts->setData(&world);
+			}
+
 			if (sceneDirty)
 			{
 				ubo_scene->setData(&uniformScene);
 				sceneDirty = 0;
 				commonSet->setBuffer("Scene", ubo_scene);
 			}
-			if (stateDirty) {
+
+			if (stateDirty)
+			{
 				switch (alphaFunc) {
 				case ALPHAALWAYS:
 				default:
@@ -866,7 +879,6 @@ namespace rw
 				stateDirty = 0;
 				commonSet->setBuffer("State", ubo_state);
 			}
-
 		}
 
 		static void setFrameBuffer(Camera* cam)
@@ -952,6 +964,14 @@ namespace rw
 			float32 invwy = 1.0f / cam->viewWindow.y;
 			float32 invz = 1.0f / (cam->farPlane - cam->nearPlane);
 
+
+			/**
+			 * [][][][]
+			 * [][][][]
+			 * [][][2,2][]
+			 * [][][][]
+			 */
+
 			proj[0] = invwx;
 			proj[1] = 0.0f;
 			proj[2] = 0.0f;
@@ -968,10 +988,12 @@ namespace rw
 			proj[13] = -proj[9];
 			if (cam->projection == Camera::PERSPECTIVE)
 			{
-				proj[10] = (cam->farPlane + cam->nearPlane) * invz;
+				//proj[10] = (cam->farPlane + cam->nearPlane) * invz;
+				proj[10] = cam->farPlane * invz;
 				proj[11] = 1.0f;
 
-				proj[14] = -2.0f * cam->nearPlane * cam->farPlane * invz;
+				//proj[14] = -2.0f * cam->nearPlane * cam->farPlane * invz;
+				proj[14] = -cam->nearPlane * cam->farPlane * invz;
 				proj[15] = 0.0f;
 			}
 			else
@@ -1017,18 +1039,16 @@ namespace rw
 			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
 
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-			/*if (cmdBuffer != nullptr) 
+			if (cmdBuffer != nullptr) 
 			{
-				cmdBuffer->addTask([=](const maple::CommandBuffer* command) {
-					maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), command, { 1,1,1,1 });
-					if (natras2->textureId == -1)
-					{
-						maple::RenderDevice::get()->clearRenderTarget(
-							maple::GraphicsContext::get()->getSwapChain()->getCurrentImage()
-							, command, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f });
-					}
-				});
-			}*/
+				maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), cmdBuffer, { 1,1,1,1 });
+				if (natras2->textureId == -1)
+				{
+					maple::RenderDevice::get()->clearRenderTarget(
+						maple::GraphicsContext::get()->getSwapChain()->getCurrentImage()
+						, cmdBuffer, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f });
+				}
+			}
 		}
 
 		static void showRaster(Raster* raster, uint32 flags)

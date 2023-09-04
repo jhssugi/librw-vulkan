@@ -168,7 +168,7 @@ namespace rw
 
 		void allocateDXT(Raster* raster, int32 dxt, int32 numLevels, bool32 hasAlpha)
 		{
-
+			MAPLE_ASSERT(false, "TODO..allocateDXT.");
 		}
 
 		Raster* rasterCreate(Raster* raster)

@@ -7,16 +7,18 @@
 
 layout(location = 0) in vec3 in_pos;
 layout(location = 1) in vec3 in_normal;
-
 layout(location = 2) in vec4 in_color;
-layout(location = 3) in vec4 in_weights;
-layout(location = 4) in vec4 in_indices;
-layout(location = 5) in vec2 in_tex0;
-layout(location = 6) in vec2 in_tex1;
+layout(location = 3) in vec2 in_tex0;
 
 layout(location = 0) out vec4 v_color;
 layout(location = 1) out vec2 v_tex0;
 layout(location = 2) out float v_fog;
+
+layout(push_constant) uniform PushConsts 
+{
+	mat4 u_world;
+};
+
 
 layout(set = 0, binding = 0, std140) uniform State
 {
@@ -33,7 +35,6 @@ layout(set = 0, binding = 1, std140) uniform Scene
 
 layout(set = 0, binding = 2, std140) uniform Object
 {
-	mat4 u_world;
 	vec4 u_ambLight;
 	vec4 u_lightParams[MAX_LIGHTS];	// type, radius, minusCosAngle, hardSpot
 	vec4 u_lightPosition[MAX_LIGHTS];

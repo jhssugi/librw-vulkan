@@ -135,9 +135,18 @@ instTexCoords(int type, uint8 *dst, TexCoords *src, uint32 numVertices, uint32 s
 {
 	assert(type == VERT_FLOAT2);
 	for(uint32 i = 0; i < numVertices; i++){
-		memcpy(dst, src, 8);
-		dst += stride;
-		src++;
+		if (src != nullptr) 
+		{
+			memcpy(dst, src, 8);
+			dst += stride;
+			src++;
+		}
+		else 
+		{
+			TexCoords newSrc = {0.f,1.f};
+			memcpy(dst, &newSrc, 8);
+			dst += stride;
+		}
 	}
 }
 
