@@ -54,6 +54,8 @@ namespace rw
 		void setUniform(int32 id, void* data);
 		void flushUniforms(void);
 
+		std::shared_ptr<maple::Shader> getShader(int32_t shader);
+
 		extern UniformRegistry uniformRegistry;
 
 		struct Shader
@@ -63,7 +65,7 @@ namespace rw
 			uint32* serialNums;
 			int32   numUniforms;        // just to be sure!
 
-			maple::Shader* shader;
+			int32_t shaderId;
 
 			static Shader* create(const std::string & vert,
 				const char* userDefine,

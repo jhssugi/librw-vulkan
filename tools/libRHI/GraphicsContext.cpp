@@ -327,12 +327,12 @@ namespace maple
 	auto UniformBuffer::create(uint32_t size, const void* data) -> std::shared_ptr<UniformBuffer>
 	{
 #ifdef MAPLE_VULKAN
-		auto buffer = std::make_shared<VulkanUniformBuffer>();
+		auto buffer = std::make_shared<VulkanUniformBuffer>(size,data);
 #endif
 #ifdef MAPLE_OPENGL
 		auto buffer = std::make_shared<GLUniformBuffer>();
 #endif
-		buffer->setData(size, data);
+		//buffer->setData(size, data);
 		return buffer;
 	}
 

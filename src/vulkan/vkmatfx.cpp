@@ -46,10 +46,10 @@ namespace rw
 		{
 			Material* m;
 			m = inst->material;
+			auto sets = getMaterialDescriptorSet(m);
+			setMaterial(sets, flags, m->color, m->surfaceProps);
 
-			setMaterial(flags, m->color, m->surfaceProps);
-
-			setTexture(0, m->texture);
+			setTexture(sets, 0, m->texture);
 
 			rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
@@ -111,12 +111,13 @@ namespace rw
 				matfxDefaultRender(header, inst, vsBits, flags);
 				return;
 			}
+			auto sets = getMaterialDescriptorSet(m);
 
-			setTexture(0, m->texture);
-			setTexture(1, env->tex);
+			setTexture(sets, 0, m->texture);
+			setTexture(sets, 1, env->tex);
 			uploadEnvMatrix(env->frame);
 
-			setMaterial(flags, m->color, m->surfaceProps);
+			setMaterial(sets,flags, m->color, m->surfaceProps);
 
 			float fxparams[4];
 			fxparams[0] = env->coefficient;
@@ -165,7 +166,6 @@ namespace rw
 			setWorldMatrix(atomic->getFrame()->getLTM());
 			int32 vsBits = lightingCB(atomic);
 
-			setupVertexInput(header);
 
 			lastEnvFrame = nil;
 
@@ -187,7 +187,6 @@ namespace rw
 				}
 				inst++;
 			}
-			teardownVertexInput(header);
 		}
 
 		ObjPipeline*
@@ -206,21 +205,19 @@ namespace rw
 		{
 			matFXGlobals.pipelines[PLATFORM_VULKAN] = makeMatFXPipeline();
 
-//#include "shaders/matfx_gl.inc"
-//			const char* vs[] = { shaderDecl, header_vert_src, matfx_env_vert_src, nil };
-//			const char* vs_fullLight[] = { shaderDecl, "#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", header_vert_src, matfx_env_vert_src, nil };
-//			const char* fs[] = { shaderDecl, header_frag_src, matfx_env_frag_src, nil };
-//			const char* fs_noAT[] = { shaderDecl, "#define NO_ALPHATEST\n", header_frag_src, matfx_env_frag_src, nil };
-//
-//			envShader = Shader::create(vs, fs);
-//			assert(envShader);
-//			envShader_noAT = Shader::create(vs, fs_noAT);
-//			assert(envShader_noAT);
-//
-//			envShader_fullLight = Shader::create(vs_fullLight, fs);
-//			assert(envShader_fullLight);
-//			envShader_fullLight_noAT = Shader::create(vs_fullLight, fs_noAT);
-//			assert(envShader_fullLight_noAT);
+#include "vkshaders/matfx.shader.h"
+
+			const std::string defaultTxt = { (char*)__matfx_shader, __matfx_shader_len };
+
+			envShader = Shader::create(defaultTxt,"#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+			assert(envShader);
+			envShader_noAT = Shader::create(defaultTxt,"#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
+			assert(envShader_noAT);
+
+			envShader_fullLight = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+			assert(envShader_fullLight);
+			envShader_fullLight_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
+			assert(envShader_fullLight_noAT);
 
 			return o;
 		}
@@ -244,10 +241,10 @@ namespace rw
 
 		void initMatFX(void)
 		{
-			u_texMatrix  = registerUniform("u_texMatrix", UNIFORM_MAT4);
-			u_fxparams   = registerUniform("u_fxparams", UNIFORM_VEC4);
+			u_texMatrix = registerUniform("u_texMatrix", UNIFORM_MAT4);
+			u_fxparams = registerUniform("u_fxparams", UNIFORM_VEC4);
 			u_colorClamp = registerUniform("u_colorClamp", UNIFORM_VEC4);
-			u_envColor	 = registerUniform("u_envColor", UNIFORM_VEC4);
+			u_envColor = registerUniform("u_envColor", UNIFORM_VEC4);
 			Driver::registerPlugin(PLATFORM_VULKAN, 0, ID_MATFX, matfxOpen, matfxClose);
 		}
 #else

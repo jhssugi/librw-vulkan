@@ -7,13 +7,15 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <memory>
-namespace maple 
+
+namespace maple
 {
 	enum class TextureFormat : int32_t;
 	enum class DrawType : int32_t;
 	class Texture;
 	class VertexBuffer;
 	class IndexBuffer;
+	class DescriptorSet;
 }
 
 namespace rw
@@ -69,7 +71,7 @@ namespace rw
 			uint32    numIndex;
 			uint32    minVert;            // not used for rendering
 			int32     numVertices;        //
-			Material *material;
+			Material* material;
 			bool32    vertexAlpha;
 			uint32    program;
 			uint32    offset;
@@ -79,24 +81,24 @@ namespace rw
 		{
 			uint32      serialNumber;
 			uint32      numMeshes;
-			uint16 *    indexBuffer;
+			uint16* indexBuffer;
 			maple::DrawType primType;
-			uint8 *     vertexBuffer;
+			uint8* vertexBuffer;
 			int32       numAttribs;
-			AttribDesc *attribDesc;
+			AttribDesc* attribDesc;
 			uint32      totalNumIndex;
 			uint32      totalNumVertex;
 
 			maple::VertexBuffer* vertexBufferGPU;
-			maple::IndexBuffer *indexBufferGPU;
+			maple::IndexBuffer* indexBufferGPU;
 
-			InstanceData *inst;
+			InstanceData* inst;
 		};
 
 		struct Shader;
 
-		extern Shader *defaultShader, *defaultShader_noAT;
-		extern Shader *defaultShader_fullLight, *defaultShader_fullLight_noAT;
+		extern Shader* defaultShader, * defaultShader_noAT;
+		extern Shader* defaultShader_fullLight, * defaultShader_fullLight_noAT;
 
 		struct Im3DVertex
 		{
@@ -262,11 +264,6 @@ namespace rw
 			}
 		};
 
-		void setAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
-		void disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
-		void setupVertexInput(InstanceDataHeader *header);
-		void teardownVertexInput(InstanceDataHeader *header);
-
 		// Render state
 
 		// Vertex shader bits
@@ -274,38 +271,42 @@ namespace rw
 		{
 			// These should be low so they could be used as indices
 			VSLIGHT_DIRECT = 1,
-			VSLIGHT_POINT  = 2,
-			VSLIGHT_SPOT   = 4,
-			VSLIGHT_MASK   = 7,        // all the above
+			VSLIGHT_POINT = 2,
+			VSLIGHT_SPOT = 4,
+			VSLIGHT_MASK = 7,        // all the above
 			// less critical
 			VSLIGHT_AMBIENT = 8,
 		};
 
-		extern const char *shaderDecl;        // #version stuff
-		extern const char *header_vert_src;
-		extern const char *header_frag_src;
+		extern const char* header_vert_src;
+		extern const char* header_frag_src;
 
-		extern Shader *im2dOverrideShader;
+		extern Shader* im2dOverrideShader;
 
 		// per Scene
-		void setProjectionMatrix(float32 *);
-		void setViewMatrix(float32 *);
+		void setProjectionMatrix(float32*);
+		void setViewMatrix(float32*);
 
 		// per Object
-		void  setWorldMatrix(Matrix *);
-		int32 setLights(WorldLights *lightData);
+		void  setWorldMatrix(Matrix*);
+		int32 setLights(WorldLights* lightData);
+
 
 		// per Mesh
-		void        setTexture(int32 n, Texture *tex);
-		void        setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f);
-		inline void setMaterial(uint32 flags, const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f)
+		void setTexture(std::shared_ptr<maple::DescriptorSet> sets, int32 n, Texture* tex);
+		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp = 0.0f);
+
+		inline void setMaterial(const std::shared_ptr<maple::DescriptorSet>& sets,uint32 flags, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp = 0.0f)
 		{
-			static RGBA white = {255, 255, 255, 255};
+			static RGBA white = { 255, 255, 255, 255 };
 			if (flags & Geometry::MODULATE)
-				setMaterial(color, surfaceprops, extraSurfProp);
+				setMaterial(sets, color, surfaceprops, extraSurfProp);
 			else
-				setMaterial(white, surfaceprops, extraSurfProp);
+				setMaterial(sets, white, surfaceprops, extraSurfProp);
 		}
+
+		std::shared_ptr<maple::Texture> getTexture(int32_t textureId);
+		std::shared_ptr<maple::DescriptorSet> getMaterialDescriptorSet(Material* material);
 
 		void   setAlphaBlend(bool32 enable);
 		bool32 getAlphaBlend(void);
@@ -319,30 +320,30 @@ namespace rw
 
 		class ObjPipeline : public rw::ObjPipeline
 		{
-		  public:
+		public:
 			void                init(void);
-			static ObjPipeline *create(void);
+			static ObjPipeline* create(void);
 
-			void (*instanceCB)(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
-			void (*uninstanceCB)(Geometry *geo, InstanceDataHeader *header);
-			void (*renderCB)(Atomic *atomic, InstanceDataHeader *header);
+			void (*instanceCB)(Geometry* geo, InstanceDataHeader* header, bool32 reinstance);
+			void (*uninstanceCB)(Geometry* geo, InstanceDataHeader* header);
+			void (*renderCB)(Atomic* atomic, InstanceDataHeader* header);
 		};
 
-		void  defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
-		void  defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
-		void  defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
-		int32 lightingCB(Atomic *atomic);
+		void  defaultInstanceCB(Geometry* geo, InstanceDataHeader* header, bool32 reinstance);
+		void  defaultUninstanceCB(Geometry* geo, InstanceDataHeader* header);
+		void  defaultRenderCB(Atomic* atomic, InstanceDataHeader* header);
+		int32 lightingCB(Atomic* atomic);
 		int32 lightingCB(void);
 
-		void drawInst_simple(InstanceDataHeader *header, InstanceData *inst);
+		void drawInst_simple(InstanceDataHeader* header, InstanceData* inst);
 		// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
-		void drawInst_GSemu(InstanceDataHeader *header, InstanceData *inst);
+		void drawInst_GSemu(InstanceDataHeader* header, InstanceData* inst);
 		// This one switches between the above two depending on render state;
-		void drawInst(InstanceDataHeader *header, InstanceData *inst);
+		void drawInst(InstanceDataHeader* header, InstanceData* inst);
 
-		void *destroyNativeData(void *object, int32, int32);
+		void* destroyNativeData(void* object, int32, int32);
 
-		ObjPipeline *makeDefaultPipeline(void);
+		ObjPipeline* makeDefaultPipeline(void);
 
 		// Native Texture and Raster
 
@@ -352,7 +353,7 @@ namespace rw
 			maple::TextureFormat internalFormat;
 			int32 bpp;        // bytes per pixel
 			// texture object
-			void * texture;
+			int32_t textureId;
 
 			bool isCompressed;
 			bool hasAlpha;
@@ -376,11 +377,11 @@ namespace rw
 		// this has to be set before the texture is filled:
 		extern bool32 needToReadBackTextures;
 
-		void allocateDXT(Raster *raster, int32 dxt, int32 numLevels, bool32 hasAlpha);
+		void allocateDXT(Raster* raster, int32 dxt, int32 numLevels, bool32 hasAlpha);
 
-		Texture *readNativeTexture(Stream *stream);
-		void     writeNativeTexture(Texture *tex, Stream *stream);
-		uint32   getSizeNativeTexture(Texture *tex);
+		Texture* readNativeTexture(Stream* stream);
+		void     writeNativeTexture(Texture* tex, Stream* stream);
+		uint32   getSizeNativeTexture(Texture* tex);
 
 		extern int32 nativeRasterOffset;
 		void         registerNativeRaster(void);
@@ -399,9 +400,9 @@ namespace rw
 		void registerPlatformPlugins(void);
 
 		Texture* readNativeTexture(Stream* stream);
-		
+
 		uint32   getSizeNativeTexture(Texture* tex);
-		
+
 		void     writeNativeTexture(Texture* tex, Stream* stream);
 	}
 }

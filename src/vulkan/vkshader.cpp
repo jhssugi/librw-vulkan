@@ -28,6 +28,8 @@ namespace rw
 #	include "shaders/header_fs.inc"
 #	include "shaders/header_vs.inc"
 
+		std::vector<maple::Shader::Ptr> shaders;
+
 		UniformRegistry uniformRegistry;
 		static char     nameBuffer[(MAX_UNIFORMS + MAX_BLOCKS) * 32];        // static because memory system isn't up yet when we register
 		static uint32   nameBufPtr;
@@ -46,6 +48,11 @@ namespace rw
 			assert(nameBufPtr <= nelem(nameBuffer));
 			memcpy(s, name, len);
 			return s;
+		}
+
+		std::shared_ptr<maple::Shader> getShader(int32_t shader)
+		{
+			return shaders[shader];
 		}
 
 		int32
@@ -143,7 +150,9 @@ namespace rw
 			std::vector<uint32_t> fragShader;
 			maple::ShaderCompiler::complie(maple::ShaderType::Vertex, vert.c_str(), vertexShader, userDefine);
 			maple::ShaderCompiler::complie(maple::ShaderType::Fragment, frag.c_str(), fragShader, fragUserDefine);
-			sh->shader = maple::Shader::createRaw(vertexShader, fragShader);
+			auto shaderPtr = maple::Shader::create(vertexShader, fragShader);
+			sh->shaderId = shaders.size();
+			shaders.push_back(shaderPtr);
 			return sh;
 		}
 

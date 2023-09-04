@@ -32,6 +32,8 @@ namespace rw
 {
 	namespace vulkan
 	{
+		std::vector<std::shared_ptr<maple::Texture>> textureCache;
+
 		static maple::TextureFilter filterConvMap_NoMIP[] = {
 				maple::TextureFilter::None,
 				maple::TextureFilter::Nearest,
@@ -116,11 +118,17 @@ namespace rw
 			}
 
 			natras->autogenMipmap = (raster->format & (Raster::MIPMAP | Raster::AUTOMIPMAP)) == (Raster::MIPMAP | Raster::AUTOMIPMAP);
-			auto texture = maple::Texture2D::createRaw();
+			auto texture = maple::Texture2D::create();
+			natras->textureId = textureCache.size();
+			textureCache.emplace_back(texture);
 			texture->buildTexture(natras->internalFormat, raster->width, raster->height, false, false, false, natras->numLevels > 1);
-			natras->texture = texture;
 			natras->maxAnisotropy = 1;
 			return raster;
+		}
+
+		std::shared_ptr<maple::Texture> getTexture(int32_t textureId) 
+		{
+			return textureCache[textureId];
 		}
 
 		static Raster* rasterCreateCameraTexture(Raster* raster)
@@ -150,8 +158,9 @@ namespace rw
 		static Raster* rasterCreateZbuffer(Raster* raster)
 		{
 			VulkanRaster* natras = GET_VULKAN_RASTEREXT(raster);
-			auto depth = maple::TextureDepth::createRaw(raster->width, raster->height, true);
-			natras->texture = depth;
+			auto depth = maple::TextureDepth::create(raster->width, raster->height, true);
+			natras->textureId = textureCache.size();
+			textureCache.emplace_back(depth);
 			natras->internalFormat = maple::TextureFormat::DEPTH_STENCIL;
 			natras->autogenMipmap = 0;
 			return raster;
@@ -219,7 +228,8 @@ namespace rw
 
 		int32 rasterNumLevels(Raster* raster)
 		{
-			return 0;
+			VulkanRaster* natras = GET_VULKAN_RASTEREXT(raster);
+			return getTexture(natras->textureId)->getMipMapLevels();
 		}
 
 		// Almost the same as d3d9 and ps2 function
@@ -288,25 +298,86 @@ namespace rw
 
 		static void* createNativeRaster(void* object, int32 offset, int32)
 		{
-			return nullptr;
+			VulkanRaster* ras = PLUGINOFFSET(VulkanRaster, object, offset);
+			memset(ras, 0, sizeof(VulkanRaster));
+			return object;
 		}
 
 		void evictRaster(Raster* raster);
 
 		static void* destroyNativeRaster(void* object, int32 offset, int32)
 		{
-			return nullptr;
+			LOGI("destroyNativeRaster TODO..");
+			return object;
 		}
 
 		static void* copyNativeRaster(void* dst, void*, int32 offset, int32)
 		{
+			LOGI("copyNativeRaster TODO..");
 			return nullptr;
 		}
 
 		Texture* readNativeTexture(Stream* stream)
 		{
-			return nullptr;
+			uint32 platform;
+			if (!findChunk(stream, ID_STRUCT, nil, nil)) {
+				RWERROR((ERR_CHUNK, "STRUCT"));
+				return nil;
+			}
+			platform = stream->readU32();
+			if (platform != PLATFORM_GL3) {
+				RWERROR((ERR_PLATFORM, platform));
+				return nil;
+			}
+			Texture* tex = Texture::create(nil);
+			if (tex == nil)
+				return nil;
 
+			// Texture
+			tex->filterAddressing = stream->readU32();
+			stream->read8(tex->name, 32);
+			stream->read8(tex->mask, 32);
+
+			// Raster
+			uint32 format = stream->readU32();
+			int32 width = stream->readI32();
+			int32 height = stream->readI32();
+			int32 depth = stream->readI32();
+			int32 numLevels = stream->readI32();
+
+			// Native raster
+			int32 subplatform = stream->readI32();
+			int32 flags = stream->readI32();
+			int32 compression = stream->readI32();
+
+		/*	if (subplatform != gl3Caps.gles) {
+				tex->destroy();
+				RWERROR((ERR_PLATFORM, platform));
+				return nil;
+			}*/
+
+			Raster* raster;
+			VulkanRaster* natras;
+			if (flags & 2) {
+				raster = Raster::create(width, height, depth, format | Raster::TEXTURE | Raster::DONTALLOCATE, PLATFORM_VULKAN);
+				allocateDXT(raster, compression, numLevels, flags & 1);
+			}
+			else {
+				raster = Raster::create(width, height, depth, format | Raster::TEXTURE, PLATFORM_VULKAN);
+			}
+			assert(raster);
+			natras = GET_VULKAN_RASTEREXT(raster);
+			tex->raster = raster;
+
+			uint32 size;
+			uint8* data;
+			for (int32 i = 0; i < numLevels; i++) {
+				size = stream->readU32();
+				data = raster->lock(i, Raster::LOCKWRITE | Raster::LOCKNOFETCH);
+				stream->read8(data, size);
+				raster->unlock(i);
+			}
+			return tex;
 		}
 
 		void writeNativeTexture(Texture* tex, Stream* stream)

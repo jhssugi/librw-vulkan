@@ -26,6 +26,9 @@
 #include "RenderDevice.h"
 #include "ImGuiRenderer.h"
 #include "ShaderCompiler.h"
+#include "UniformBuffer.h"
+#include "DescriptorSet.h"
+#include "Textures.h"
 
 namespace rw
 {
@@ -79,39 +82,15 @@ namespace rw
 		};
 
 
-		// this needs a define in the shaders as well!
-		//#define RW_GL_USE_UBOS
+		static maple::UniformBuffer::Ptr ubo_state, ubo_scene, ubo_object;
 
-		static GLuint vao;
-#	ifdef RW_GL_USE_UBOS
-		static GLuint ubo_state, ubo_scene, ubo_object;
-#	endif
+		static maple::DescriptorSet::Ptr commonSet;
+
 		static GLuint        whitetex;
 		static UniformState  uniformState;
 		static UniformScene  uniformScene;
 		static UniformObject uniformObject;
 
-#	ifndef RW_GL_USE_UBOS
-		// State
-		int32 u_alphaRef;
-		int32 u_fogData;
-		int32 u_fogColor;
-
-		// Scene
-		int32 u_proj;
-		int32 u_view;
-
-		// Object
-		int32 u_world;
-		int32 u_ambLight;
-		int32 u_lightParams;
-		int32 u_lightPosition;
-		int32 u_lightDirection;
-		int32 u_lightColor;
-#	endif
-
-		int32 u_matColor;
-		int32 u_surfProps;
 
 		Shader* defaultShader, * defaultShader_noAT;
 		Shader* defaultShader_fullLight, * defaultShader_fullLight_noAT;
@@ -240,8 +219,7 @@ namespace rw
  * GL state cache
  */
 
-		void
-			setGlRenderState(uint32 state, uint32 value)
+		void setGlRenderState(uint32 state, uint32 value)
 		{
 			switch (state)
 			{
@@ -294,10 +272,6 @@ namespace rw
 				curGlState.stencilWriteMask = value;
 				break;
 			}
-		}
-
-		void flushGlRenderState(void)
-		{
 		}
 
 		void setAlphaBlend(bool32 enable)
@@ -392,8 +366,7 @@ namespace rw
 			return prev;
 		}
 
-		void
-			bindFramebuffer(uint32 fbo)
+		void bindFramebuffer(uint32 fbo)
 		{
 		}
 
@@ -417,8 +390,7 @@ namespace rw
 		{
 		}
 
-		void
-			evictRaster(Raster* raster)
+		void evictRaster(Raster* raster)
 		{
 			int i;
 			for (i = 0; i < MAXNUMSTAGES; i++)
@@ -430,13 +402,18 @@ namespace rw
 			}
 		}
 
-		void
-			setTexture(int32 stage, Texture* tex)
+		void setTexture(std::shared_ptr<maple::DescriptorSet> sets, int32 stage, Texture* tex)
 		{
+			auto texture = maple::Texture2D::getTexture1X1White();
+			VulkanRaster* natras = nullptr;
+			if (tex != nullptr)
+			{
+				natras = PLUGINOFFSET(VulkanRaster, tex->raster, nativeRasterOffset);
+			}
+			sets->setTexture("tex" + std::to_string(stage), tex == nullptr ? texture : getTexture(natras->textureId));
 		}
 
-		static void
-			setRenderState(int32 state, void* pvalue)
+		static void setRenderState(int32 state, void* pvalue)
 		{
 			uint32 value = (uint32)(uintptr)pvalue;
 			switch (state)
@@ -589,8 +566,7 @@ namespace rw
 			}
 		}
 
-		static void*
-			getRenderState(int32 state)
+		static void* getRenderState(int32 state)
 		{
 			uint32 val;
 			RGBA   rgba;
@@ -683,8 +659,7 @@ namespace rw
 			return (void*)(uintptr)val;
 		}
 
-		static void
-			resetRenderState(void)
+		static void resetRenderState(void)
 		{
 			rwStateCache.alphaFunc = ALPHAGREATEREQUAL;
 			alphaFunc = 0;
@@ -749,16 +724,13 @@ namespace rw
 			setActiveTexture(0);
 		}
 
-		void
-			setWorldMatrix(Matrix* mat)
+		void setWorldMatrix(Matrix* mat)
 		{
 			convMatrix(&uniformObject.world, mat);
-			setUniform(u_world, &uniformObject.world);
 			objectDirty = 1;
 		}
 
-		int32
-			setLights(WorldLights* lightData)
+		int32 setLights(WorldLights* lightData)
 		{
 			int    i, n;
 			Light* l;
@@ -823,56 +795,80 @@ namespace rw
 
 			uniformObject.lightParams[n].type = 0.0f;
 
-			setUniform(u_ambLight, &uniformObject.ambLight);
-			setUniform(u_lightParams, uniformObject.lightParams);
-			setUniform(u_lightPosition, uniformObject.lightPosition);
-			setUniform(u_lightDirection, uniformObject.lightDirection);
-			setUniform(u_lightColor, uniformObject.lightColor);
 		out:
 			objectDirty = 1;
 			return bits;
 		}
 
-		void
-			setProjectionMatrix(float32* mat)
+		void setProjectionMatrix(float32* mat)
 		{
 			memcpy(&uniformScene.proj, mat, 64);
-			setUniform(u_proj, uniformScene.proj);
 			sceneDirty = 1;
 		}
 
-		void
-			setViewMatrix(float32* mat)
+		void setViewMatrix(float32* mat)
 		{
 			memcpy(&uniformScene.view, mat, 64);
-			setUniform(u_view, uniformScene.view);
 			sceneDirty = 1;
 		}
 
 		Shader* lastShaderUploaded;
 
-		void
-			setMaterial(const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp)
+		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp)
 		{
 			rw::RGBAf col;
 			convColor(&col, &color);
-			setUniform(u_matColor, &col);
-
 			float surfProps[4];
 			surfProps[0] = surfaceprops.ambient;
 			surfProps[1] = surfaceprops.specular;
 			surfProps[2] = surfaceprops.diffuse;
 			surfProps[3] = extraSurfProp;
-			setUniform(u_surfProps, surfProps);
+			sets->setUniformBufferData("Material", &surfProps);
 		}
 
 		void flushCache(void)
 		{
+			if (objectDirty)
+			{
+				ubo_object->setData(&uniformObject);
+				objectDirty = 0;
+			}
+			if (sceneDirty)
+			{
+				ubo_scene->setData(&uniformScene);
+				sceneDirty = 0;
+			}
+			if (stateDirty) {
+				switch (alphaFunc) {
+				case ALPHAALWAYS:
+				default:
+					uniformState.alphaRefLow = -1000.0f;
+					uniformState.alphaRefHigh = 1000.0f;
+					break;
+				case ALPHAGREATEREQUAL:
+					uniformState.alphaRefLow = alphaRef;
+					uniformState.alphaRefHigh = 1000.0f;
+					break;
+				case ALPHALESS:
+					uniformState.alphaRefLow = -1000.0f;
+					uniformState.alphaRefHigh = alphaRef;
+					break;
+				}
+				uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
+				uniformState.fogStart = rwStateCache.fogStart;
+				uniformState.fogEnd = rwStateCache.fogEnd;
+				uniformState.fogRange = 1.0f / (rwStateCache.fogStart - rwStateCache.fogEnd);
+				ubo_state->setData(&uniformState);
+				stateDirty = 0;
+			}
 		}
 
 		static void setFrameBuffer(Camera* cam)
 		{
-
+			VulkanRaster* natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
+			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
+			vkGlobals.currentDepth = getTexture(natras->textureId);
+			vkGlobals.colorTarget = nullptr;
 		}
 
 		static Rect getFramebufferRect(Raster* frameBuffer)
@@ -1160,12 +1156,12 @@ namespace rw
 			return 1;
 		}
 
-
-
 		static int initVulkan(void)
 		{
 			maple::Console::init();
 			maple::GraphicsContext::get()->init(vkGlobals.window, vkGlobals.winWidth, vkGlobals.winHeight);
+			maple::RenderDevice::get()->init();
+
 			imRender = maple::ImGuiRenderer::create(vkGlobals.winWidth, vkGlobals.winHeight, false);
 			imRender->init();
 
@@ -1178,6 +1174,12 @@ namespace rw
 
 			defaultShader_fullLight = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n");
 			defaultShader_fullLight_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n#define NO_ALPHATEST\n");
+
+			ubo_state = maple::UniformBuffer::create(sizeof(UniformState), &uniformState);
+			ubo_scene = maple::UniformBuffer::create(sizeof(UniformScene), &uniformScene);
+			ubo_object = maple::UniformBuffer::create(sizeof(UniformObject), &uniformObject);
+
+			commonSet = maple::DescriptorSet::create({ 0, getShader(defaultShader->shaderId).get() });
 
 			openIm2D(vkGlobals.winWidth, vkGlobals.winHeight);
 			openIm3D();

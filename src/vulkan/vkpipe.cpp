@@ -8,6 +8,7 @@
 
 #include "IndexBuffer.h"
 #include "VertexBuffer.h"
+#include "DescriptorSet.h"
 
 #include "../rwbase.h"
 
@@ -23,7 +24,7 @@
 
 #include "rwvk.h"
 #include "rwvkshader.h"
-
+#include <unordered_map>
 namespace rw
 {
 	namespace vulkan
@@ -31,6 +32,13 @@ namespace rw
 		// TODO: make some of these things platform-independent
 
 #ifdef RW_VULKAN
+
+		std::unordered_map<Material*, maple::DescriptorSet::Ptr> descriptorSets;
+
+		std::shared_ptr<maple::DescriptorSet> getMaterialDescriptorSet(Material* material)
+		{
+			return descriptorSets[material];
+		}
 
 		void freeInstanceData(Geometry* geometry)
 		{
@@ -87,6 +95,12 @@ namespace rw
 				assert(inst->minVert != 0xFFFFFFFF);
 				inst->numIndex = mesh->numIndices;
 				inst->material = mesh->material;
+				
+				if (descriptorSets.find(inst->material) == descriptorSets.end()) 
+				{
+					descriptorSets[inst->material] = maple::DescriptorSet::create({ 1, getShader(defaultShader->shaderId).get() });
+				}
+
 				inst->vertexAlpha = 0;
 				inst->program = 0;
 				inst->offset = offset;

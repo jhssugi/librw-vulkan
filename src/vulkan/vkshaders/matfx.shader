@@ -2,7 +2,6 @@
 
 #ifdef VERTEX_SHADER
 
-
 #define MAX_LIGHTS 8
 
 layout(location = 0) in vec3 in_pos;
@@ -14,8 +13,10 @@ layout(location = 5) in vec2 in_tex0;
 layout(location = 6) in vec2 in_tex1;
 
 layout(location = 0) out vec4 v_color;
-layout(location = 1) out vec2 v_tex0;
-layout(location = 2) out float v_fog;
+layout(location = 1) out vec4 v_envColor;
+layout(location = 2) out vec2 v_tex0;
+layout(location = 3) out vec2 v_tex1;
+layout(location = 4) out float v_fog;
 
 layout(set = 0, binding = 0, std140) uniform State
 {
@@ -40,20 +41,12 @@ layout(set = 0, binding = 2, std140) uniform Object
 	vec4 u_lightColor[MAX_LIGHTS];
 };
 
-layout(set = 1, binding = 0, std140) uniform Material
+layout(push_constant) uniform PushConsts
 {
-	vec4 u_matColor;
-	vec4 u_surfProps;	// amb, spec, diff, extra	
+	mat4 u_texMatrix;
+	vec4 u_colorClamp;
+	vec4 u_envColor;
 };
-
-#define u_fogStart (u_fogData.x)
-#define u_fogEnd (u_fogData.y)
-#define u_fogRange (u_fogData.z)
-#define u_fogDisable (u_fogData.w)
-
-#define surfAmbient (u_surfProps.x)
-#define surfSpecular (u_surfProps.y)
-#define surfDiffuse (u_surfProps.z)
 
 vec3 DoDynamicLight(vec3 V, vec3 N)
 {
@@ -100,54 +93,46 @@ vec3 DoDynamicLight(vec3 V, vec3 N)
 	return color;
 }
 
-float DoFog(float w)
-{
-	return clamp((w - u_fogEnd)*u_fogRange, u_fogDisable, 1.0);
-}
-
 void main(void)
 {
 	vec4 Vertex = u_world * vec4(in_pos, 1.0);
 	gl_Position = u_proj * u_view * Vertex;
 	vec3 Normal = mat3(u_world) * in_normal;
+
 	v_tex0 = in_tex0;
+	v_tex1 = (u_texMatrix * vec4(Normal, 1.0)).xy;
+
 	v_color = in_color;
 	v_color.rgb += u_ambLight.rgb*surfAmbient;
 	v_color.rgb += DoDynamicLight(Vertex.xyz, Normal)*surfDiffuse;
 	v_color = clamp(v_color, 0.0, 1.0);
+	v_envColor = max(v_color, u_colorClamp) * u_envColor;
 	v_color *= u_matColor;
+
 	v_fog = DoFog(gl_Position.w);
 }
 
 #else
 
-layout(set = 0, binding = 0, std140) uniform State
+layout(set = 3, binding = 0) uniform sampler2D tex0;
+layout(set = 3, binding = 1) uniform sampler2D tex1;
+
+layout(set = 3, binding = 2, std140) uniform Block
 {
-	vec2 u_alphaRef;
-	vec4 u_fogData;
-	vec4 u_fogColor;
+	vec4 u_fxparams;
 };
 
 
-layout(set = 1, binding = 0, std140) uniform Material
-{
-	vec4 u_matColor;
-	vec4 u_surfProps;	// amb, spec, diff, extra	
-};
-
-layout(set = 1, binding = 1) uniform sampler2D tex0;
-
-#define u_fogStart (u_fogData.x)
-#define u_fogEnd (u_fogData.y)
-#define u_fogRange (u_fogData.z)
-#define u_fogDisable (u_fogData.w)
-
-layout(location = 0) out vec4 fragColor;
+#define shininess (u_fxparams.x)
+#define disableFBA (u_fxparams.y)
 
 layout(location = 0) in vec4 v_color;
-layout(location = 1) in vec2 v_tex0;
-layout(location = 2) in float v_fog;
+layout(location = 1) in vec4 v_envColor;
+layout(location = 2) in vec2 v_tex0;
+layout(location = 3) in vec2 v_tex1;
+layout(location = 4) in float v_fog;
 
+layout(location = 0) out vec4 fragColor;
 
 void DoAlphaTest(float a)
 {
@@ -159,9 +144,21 @@ void DoAlphaTest(float a)
 
 void main(void)
 {
-	vec4 color = v_color*texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));
-	color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);
+	vec4 pass1 = v_color;
+	pass1 *= texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));
+
+	vec4 pass2 = v_envColor*shininess*texture(tex1, vec2(v_tex1.x, 1.0-v_tex1.y));
+
+	pass1.rgb = mix(u_fogColor.rgb, pass1.rgb, v_fog);
+	pass2.rgb = mix(vec3(0.0, 0.0, 0.0), pass2.rgb, v_fog);
+
+	float fba = max(pass1.a, disableFBA);
+	vec4 color;
+	color.rgb = pass1.rgb*pass1.a + pass2.rgb*fba;
+	color.a = pass1.a;
+
 	DoAlphaTest(color.a);
+
 	fragColor = color;
 }
 
