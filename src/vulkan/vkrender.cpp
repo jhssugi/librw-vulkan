@@ -15,6 +15,7 @@
 #include "../rwobjects.h"
 
 #include "../rwrender.h"
+
 #ifdef RW_VULKAN
 #	include "rwvk.h"
 #	include "rwvkshader.h"
@@ -26,6 +27,8 @@
 #	include "VertexBuffer.h"
 #	include "IndexBuffer.h"
 #	include "RenderDevice.h"
+#	include "CommandBuffer.h"
+
 namespace rw
 {
 	namespace vulkan
@@ -33,6 +36,8 @@ namespace rw
 #	define MAX_LIGHTS
 
 		static maple::Pipeline::Ptr currentPipeline = nullptr;
+
+		static std::unordered_map<Atomic*, maple::DescriptorSet::Ptr> objectSets;
 
 		maple::Pipeline::Ptr getPipeline(uint32_t stride)
 		{
@@ -49,16 +54,17 @@ namespace rw
 			info.colorTargets[0] = vkGlobals.colorTarget;
 			info.depthFunc = maple::StencilType::LessOrEqual;//zTest ? maple::StencilType::LessOrEqual : maple::StencilType::Always;
 			info.swapChainTarget = info.colorTargets[0] == nullptr;
+			info.depthWriteEnable = true;//zWritable
 
-			if (cullMode == rw::CULLNONE) 
+			if (cullMode == rw::CULLNONE)
 			{
 				info.cullMode = maple::CullMode::None;
 			}
-			else if (cullMode == rw::CULLBACK) 
+			else if (cullMode == rw::CULLBACK)
 			{
 				info.cullMode = maple::CullMode::Back;
 			}
-			else if(cullMode == 0)
+			else if (cullMode == 0)
 			{
 				info.cullMode = maple::CullMode::Back;
 			}
@@ -74,26 +80,27 @@ namespace rw
 			else
 			{
 				info.blendMode = maple::BlendMode::SrcAlphaOneMinusSrcAlpha;
-//				MAPLE_ASSERT(false, "TODO.");
+				//				MAPLE_ASSERT(false, "TODO.");
 			}
 			return maple::Pipeline::get(info);
 		}
 
-		void drawInst_simple(InstanceDataHeader *header, InstanceData *inst)
+		void drawInst_simple(maple::DescriptorSet::Ptr objSet, InstanceDataHeader* header, InstanceData* inst)
 		{
 			auto set = getMaterialDescriptorSet(inst->material);
 			auto pipeline = getPipeline(header->attribDesc[0].stride);
-			flushCache(pipeline->getShader());
+			flushCache(pipeline->getShader(), objSet);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
 			header->vertexBufferGPU->bind(cmdBuffer, pipeline.get());
 			header->indexBufferGPU->bind(cmdBuffer);
 
 			commonSet->update(cmdBuffer);
 			set->update(cmdBuffer);
+			objSet->update(cmdBuffer);
 
 			if (pipeline != currentPipeline)
 			{
-				if (currentPipeline != nullptr) 
+				if (currentPipeline != nullptr)
 				{
 					currentPipeline->end(cmdBuffer);
 				}
@@ -102,12 +109,12 @@ namespace rw
 				pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
 			}
 
-			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { commonSet ,set });
+			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { commonSet ,set,objSet });
 			pipeline->drawIndexed(cmdBuffer, inst->numIndex, 1, inst->offset, 0, 0);
 		}
 
 		// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
-		void drawInst_GSemu(InstanceDataHeader *header, InstanceData *inst)
+		void drawInst_GSemu(maple::DescriptorSet::Ptr objSet, InstanceDataHeader* header, InstanceData* inst)
 		{
 			uint32 hasAlpha;
 			int    alphafunc, alpharef, gsalpharef;
@@ -115,19 +122,19 @@ namespace rw
 			hasAlpha = getAlphaBlend();
 			if (hasAlpha)
 			{
-				zwrite    = rw::GetRenderState(rw::ZWRITEENABLE);
+				zwrite = rw::GetRenderState(rw::ZWRITEENABLE);
 				alphafunc = rw::GetRenderState(rw::ALPHATESTFUNC);
 				if (zwrite)
 				{
-					alpharef   = rw::GetRenderState(rw::ALPHATESTREF);
+					alpharef = rw::GetRenderState(rw::ALPHATESTREF);
 					gsalpharef = rw::GetRenderState(rw::GSALPHATESTREF);
 
 					SetRenderState(rw::ALPHATESTFUNC, rw::ALPHAGREATEREQUAL);
 					SetRenderState(rw::ALPHATESTREF, gsalpharef);
-					drawInst_simple(header, inst);
+					drawInst_simple(objSet,header, inst);
 					SetRenderState(rw::ALPHATESTFUNC, rw::ALPHALESS);
 					SetRenderState(rw::ZWRITEENABLE, 0);
-					drawInst_simple(header, inst);
+					drawInst_simple(objSet, header, inst);
 					SetRenderState(rw::ZWRITEENABLE, 1);
 					SetRenderState(rw::ALPHATESTFUNC, alphafunc);
 					SetRenderState(rw::ALPHATESTREF, alpharef);
@@ -135,35 +142,35 @@ namespace rw
 				else
 				{
 					SetRenderState(rw::ALPHATESTFUNC, rw::ALPHAALWAYS);
-					drawInst_simple(header, inst);
+					drawInst_simple(objSet, header, inst);
 					SetRenderState(rw::ALPHATESTFUNC, alphafunc);
 				}
 			}
 			else
-				drawInst_simple(header, inst);
+				drawInst_simple(objSet, header, inst);
 		}
 
-		void drawInst(InstanceDataHeader *header, InstanceData *inst)
+		void drawInst(maple::DescriptorSet::Ptr objSet, InstanceDataHeader* header, InstanceData* inst)
 		{
 			if (rw::GetRenderState(rw::GSALPHATEST))
-				drawInst_GSemu(header, inst);
+				drawInst_GSemu(objSet, header, inst);
 			else
-				drawInst_simple(header, inst);
+				drawInst_simple(objSet, header, inst);
 		}
 
-		
-		int32 lightingCB(Atomic *atomic)
+
+		int32 lightingCB(Atomic* atomic)
 		{
 			WorldLights lightData;
-			Light *     directionals[8];
-			Light *     locals[8];
-			lightData.directionals    = directionals;
+			Light* directionals[8];
+			Light* locals[8];
+			lightData.directionals = directionals;
 			lightData.numDirectionals = 8;
-			lightData.locals          = locals;
-			lightData.numLocals       = 8;
+			lightData.locals = locals;
+			lightData.numLocals = 8;
 
 			if (atomic->geometry->flags & rw::Geometry::LIGHT)
-				((World *) engine->currentWorld)->enumerateLights(atomic, &lightData);
+				((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
 			else
 				memset(&lightData, 0, sizeof(lightData));
 			return setLights(&lightData);
@@ -172,29 +179,34 @@ namespace rw
 		int32 lightingCB(void)
 		{
 			WorldLights lightData;
-			Light *     directionals[8];
-			Light *     locals[8];
-			lightData.directionals    = directionals;
+			Light* directionals[8];
+			Light* locals[8];
+			lightData.directionals = directionals;
 			lightData.numDirectionals = 8;
-			lightData.locals          = locals;
-			lightData.numLocals       = 8;
+			lightData.locals = locals;
+			lightData.numLocals = 8;
 
-			((World *) engine->currentWorld)->enumerateLights(&lightData);
+			((World*)engine->currentWorld)->enumerateLights(&lightData);
 			return setLights(&lightData);
 		}
 
-		void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
+		void defaultRenderCB(Atomic* atomic, InstanceDataHeader* header)
 		{
-			Material *m;
+			if (auto iter = objectSets.find(atomic); iter == objectSets.end())
+			{
+				objectSets[atomic] = maple::DescriptorSet::create({ 2, getShader(defaultShader->shaderId).get() });
+			}
+
+			Material* m;
 
 			uint32 flags = atomic->geometry->flags;
 			setWorldMatrix(atomic->getFrame()->getLTM());
 			int32 vsBits = lightingCB(atomic);
 
-			InstanceData *inst = header->inst;
-			int32         n    = header->numMeshes;
+			InstanceData* inst = header->inst;
+			int32         n = header->numMeshes;
 
-			while (n--) 
+			while (n--)
 			{
 				m = inst->material;
 				auto set = getMaterialDescriptorSet(m);
@@ -216,11 +228,11 @@ namespace rw
 						defaultShader_fullLight_noAT->use();
 				}
 
-				drawInst(header, inst);
+				drawInst(objectSets[atomic], header, inst);
 				inst++;
 			}
 
-			if (currentPipeline != nullptr) 
+			if (currentPipeline != nullptr)
 			{
 				currentPipeline->end(maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer());
 				currentPipeline = nullptr;

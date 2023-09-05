@@ -14,10 +14,10 @@ layout(location = 0) out vec4 v_color;
 layout(location = 1) out vec2 v_tex0;
 layout(location = 2) out float v_fog;
 
-layout(push_constant) uniform PushConsts 
+/*layout(push_constant) uniform PushConsts 
 {
 	mat4 u_world;
-};
+};*/
 
 
 layout(set = 0, binding = 0, std140) uniform State
@@ -33,8 +33,9 @@ layout(set = 0, binding = 1, std140) uniform Scene
 	mat4 u_view;
 };
 
-layout(set = 0, binding = 2, std140) uniform Object
+layout(set = 2, binding = 0, std140) uniform Object
 {
+	mat4 u_world;
 	vec4 u_ambLight;
 	vec4 u_lightParams[MAX_LIGHTS];	// type, radius, minusCosAngle, hardSpot
 	vec4 u_lightPosition[MAX_LIGHTS];

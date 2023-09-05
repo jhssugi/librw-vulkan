@@ -61,11 +61,6 @@ namespace rw
 
 		struct Shader
 		{
-			// same number of elements as UniformRegistry::numUniforms
-			GLint* uniformLocations;
-			uint32* serialNums;
-			int32   numUniforms;        // just to be sure!
-
 			int32_t shaderId;
 
 			static Shader* create(const std::string & vert,

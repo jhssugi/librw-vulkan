@@ -316,7 +316,7 @@ namespace rw
 		void   bindFramebuffer(uint32 fbo);
 		uint32 bindTexture(uint32 texid);
 
-		void flushCache(std::shared_ptr<maple::Shader> shader);
+		void flushCache(std::shared_ptr<maple::Shader> shader, std::shared_ptr<maple::DescriptorSet> dest);
 
 		class ObjPipeline : public rw::ObjPipeline
 		{

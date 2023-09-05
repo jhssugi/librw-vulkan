@@ -68,10 +68,11 @@ namespace rw
 
 #	define MAX_LIGHTS 8
 
-		static RawMatrix world;
+		//static RawMatrix world;
 		
 		struct UniformObject
 		{
+			RawMatrix world;
 			RGBAf     ambLight;
 			struct
 			{
@@ -730,7 +731,7 @@ namespace rw
 
 		void setWorldMatrix(Matrix* mat)
 		{
-			convMatrix(&world, mat);
+			convMatrix(&uniformObject.world, mat);
 			objectDirty = 1;
 		}
 
@@ -832,20 +833,20 @@ namespace rw
 			sets->setUniformBufferData("Material", &uniform);
 		}
 
-		void flushCache(std::shared_ptr<maple::Shader> shader)
+		void flushCache(std::shared_ptr<maple::Shader> shader, std::shared_ptr<maple::DescriptorSet> dest)
 		{
 			if (objectDirty)
 			{
 				ubo_object->setData(&uniformObject);
 				objectDirty = 0;
-				commonSet->setUniformBufferData("Object", &uniformObject);
+				dest->setUniformBufferData("Object", &uniformObject);
 				//TODO..it should be per object....
 			}
 			
-			if (auto consts = shader->getPushConstant(0))
+			/*if (auto consts = shader->getPushConstant(0))
 			{
 				consts->setData(&world);
-			}
+			}*/
 
 			if (sceneDirty)
 			{
