@@ -840,7 +840,6 @@ namespace rw
 				ubo_object->setData(&uniformObject);
 				objectDirty = 0;
 				dest->setUniformBufferData("Object", &uniformObject);
-				//TODO..it should be per object....
 			}
 			
 			/*if (auto consts = shader->getPushConstant(0))

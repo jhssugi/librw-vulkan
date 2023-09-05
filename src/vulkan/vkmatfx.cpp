@@ -99,7 +99,7 @@ namespace rw
 				normal2texcoord.right.x = MatFX::envMapFlipU ? -uscale : uscale;
 				RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 			}
-			setUniform(u_texMatrix, &envMtx);
+			//setUniform(u_texMatrix, &envMtx);
 		}
 
 		void matfxEnvRender(InstanceDataHeader* header, InstanceData* inst, int32 vsBits, uint32 flags, MatFX::Env* env)
@@ -124,20 +124,20 @@ namespace rw
 			fxparams[1] = env->fbAlpha ? 0.0f : 1.0f;
 			fxparams[2] = fxparams[3] = 0.0f;
 
-			setUniform(u_fxparams, fxparams);
+			//setUniform(u_fxparams, fxparams);
 			static float zero[4];
 			static float one[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 			// This clamps the vertex color below. With it we can achieve both PC and PS2 style matfx
-			if (MatFX::envMapApplyLight)
+			/*if (MatFX::envMapApplyLight)
 				setUniform(u_colorClamp, zero);
 			else
-				setUniform(u_colorClamp, one);
+				setUniform(u_colorClamp, one);*/
 			RGBAf envcol[4];
 			if (MatFX::envMapUseMatColor)
 				convColor(envcol, &m->color);
 			else
 				convColor(envcol, &MatFX::envMapColor);
-			setUniform(u_envColor, envcol);
+			//setUniform(u_envColor, envcol);
 
 			rw::SetRenderState(VERTEXALPHA, 1);
 			rw::SetRenderState(SRCBLEND, BLENDONE);
@@ -241,10 +241,10 @@ namespace rw
 
 		void initMatFX(void)
 		{
-			u_texMatrix = registerUniform("u_texMatrix", UNIFORM_MAT4);
+			/*u_texMatrix = registerUniform("u_texMatrix", UNIFORM_MAT4);
 			u_fxparams = registerUniform("u_fxparams", UNIFORM_VEC4);
 			u_colorClamp = registerUniform("u_colorClamp", UNIFORM_VEC4);
-			u_envColor = registerUniform("u_envColor", UNIFORM_VEC4);
+			u_envColor = registerUniform("u_envColor", UNIFORM_VEC4);*/
 			Driver::registerPlugin(PLATFORM_VULKAN, 0, ID_MATFX, matfxOpen, matfxClose);
 		}
 #else

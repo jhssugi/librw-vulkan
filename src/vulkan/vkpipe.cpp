@@ -192,9 +192,9 @@ namespace rw
 			{
 				for (uint32 i = 0; i < numVertices; i++) {
 					float* floatDst = reinterpret_cast<float*>(dst);
-					floatDst[0] = src == nullptr ? 1.f : src->blue / 255.f;
-					floatDst[1] = src == nullptr ? 1.f : src->green / 255.f;
-					floatDst[2] = src == nullptr ? 1.f : src->red / 255.f;
+					floatDst[0] = src == nullptr ? 0.f : src->blue / 255.f;
+					floatDst[1] = src == nullptr ? 0.f : src->green / 255.f;
+					floatDst[2] = src == nullptr ? 0.f : src->red / 255.f;
 					floatDst[3] = src == nullptr ? 1.f : src->alpha / 255.f;
 
 					alpha &= src == nullptr ? 0xFF : src->alpha;
@@ -208,9 +208,9 @@ namespace rw
 				for (uint32 i = 0; i < numVertices; i++)
 				{
 					float* floatDst = reinterpret_cast<float*>(dst);
-					floatDst[0] = src == nullptr ? 1.f : src->blue / 255.f;
-					floatDst[1] = src == nullptr ? 1.f : src->green / 255.f;
-					floatDst[2] = src == nullptr ? 1.f : src->red / 255.f;
+					floatDst[0] = src == nullptr ? 0.f : src->blue / 255.f;
+					floatDst[1] = src == nullptr ? 0.f : src->green / 255.f;
+					floatDst[2] = src == nullptr ? 0.f : src->red / 255.f;
 					floatDst[3] = src == nullptr ? 1.f : src->alpha / 255.f;
 
 					alpha &= src == nullptr ? 0xFF : src->alpha;
