@@ -32,6 +32,9 @@
 #include "SwapChain.h"
 #include "CommandBuffer.h"
 #include "Shader.h"
+#include "Pipeline.h"
+
+struct ImDrawData;
 
 namespace rw
 {
@@ -69,7 +72,7 @@ namespace rw
 #	define MAX_LIGHTS 8
 
 		//static RawMatrix world;
-		
+
 		struct UniformObject
 		{
 			RawMatrix world;
@@ -841,7 +844,7 @@ namespace rw
 				objectDirty = 0;
 				dest->setUniformBufferData("Object", &uniformObject);
 			}
-			
+
 			/*if (auto consts = shader->getPushConstant(0))
 			{
 				consts->setData(&world);
@@ -886,7 +889,7 @@ namespace rw
 			VulkanRaster* natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
 			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
 			vkGlobals.currentDepth = getTexture(natras->textureId);
-			vkGlobals.colorTarget = nullptr;
+			vkGlobals.colorTarget = getTexture(natras2->textureId);
 		}
 
 		static Rect getFramebufferRect(Raster* frameBuffer)
@@ -930,9 +933,18 @@ namespace rw
 				vkGlobals.presentOffY = r.y;
 			}
 		}
+		//using this one to indicate. because we only need vulkan begin once each frame.
+		//so when the first camera executes begin update or clear we can know that we need to render next frame.
+		//and reset it in showRaster
+		static bool executeOnceFlag = false;
 
 		static void beginUpdate(Camera* cam)
 		{
+			if (!executeOnceFlag) 
+			{
+				maple::RenderDevice::get()->begin();
+				executeOnceFlag = true;
+			}
 
 			float view[16], proj[16];
 			// View Matrix
@@ -1022,38 +1034,94 @@ namespace rw
 
 			setFrameBuffer(cam);
 
-			setViewport(cam->frameBuffer);
+ 			setViewport(cam->frameBuffer);
 		}
 
 		static void endUpdate(Camera* cam)
 		{
-			imRender->render();
-			maple::RenderDevice::get()->presentInternal();
+
 		}
 
 		static void clearCamera(Camera* cam, RGBA* col, uint32 mode)
 		{
-			maple::RenderDevice::get()->begin();
+			if (!executeOnceFlag)
+			{
+				maple::RenderDevice::get()->begin();
+				executeOnceFlag = true;
+			}
 
 			VulkanRaster* natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
 			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
 
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-			if (cmdBuffer != nullptr) 
+
+			MAPLE_ASSERT(cmdBuffer != nullptr, "CMD Buffer should not be null");
+
+		
+			bool setScissor = cam->frameBuffer != cam->frameBuffer->parent;
+			if (setScissor) 
 			{
-				maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), cmdBuffer, { 1,1,1,1 });
-				if (natras2->textureId == -1)
+				auto pipeline = getPipeline(0);
+
+				pipeline->bind(cmdBuffer);
+
+				Rect r = getFramebufferRect(cam->frameBuffer);
+				if (mode & Camera::CLEARIMAGE)
 				{
-					maple::RenderDevice::get()->clearRenderTarget(
-						maple::GraphicsContext::get()->getSwapChain()->getCurrentImage()
-						, cmdBuffer, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f });
+					auto target = getTexture(natras2->textureId);
+
+					if (target == nullptr)
+					{
+						target = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage();
+					}
+
+					if (target != nullptr)
+					{
+						cmdBuffer->clearAttachments(target, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f }, { r.x, r.y, r.w, r.h });
+					}
+				}
+
+				if (mode & Camera::CLEARZ)
+				{
+					if(getTexture(natras->textureId)!=nullptr)
+					cmdBuffer->clearAttachments(getTexture(natras->textureId), {1,1,1,1}, { r.x, r.y, r.w, r.h });
+				}
+
+				pipeline->end(cmdBuffer);
+			}
+			else 
+			{
+				if (mode & Camera::CLEARIMAGE)
+				{
+					auto target = getTexture(natras2->textureId);
+
+					if (target == nullptr)
+					{
+						target = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage();
+					}
+
+					if (target != nullptr)
+					{
+						maple::RenderDevice::get()->clearRenderTarget(target, cmdBuffer, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f });
+					}
+				}
+
+				if (mode & Camera::CLEARZ)
+				{
+					maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), cmdBuffer, { 1,1,1,1 });
+				}
+
+				if (mode & Camera::CLEARSTENCIL)
+				{
+
 				}
 			}
 		}
 
 		static void showRaster(Raster* raster, uint32 flags)
 		{
-
+			maple::RenderDevice::get()->presentInternal();
+			executeOnceFlag = false;
 		}
 
 		static bool32 rasterRenderFast(Raster* raster, int32 x, int32 y)
@@ -1343,4 +1411,9 @@ namespace rw
 			vulkan::deviceSystemGLFW };
 	}        // namespace vulkan
 }        // namespace rw
+
+void ImGui_ImplRW_RenderDrawLists(ImDrawData*)
+{
+	rw::vulkan::imRender->render();
+}
 #endif

@@ -25,7 +25,6 @@ namespace rw
 {
 	namespace vulkan
 	{
-
 		std::vector<maple::Shader::Ptr> shaders;
 	
 		std::shared_ptr<maple::Shader> getShader(int32_t shader)

@@ -256,7 +256,7 @@ function vucode()
 end
 
 project "playground"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("playground")
 	entrypoint("WinMainCRTStartup")
@@ -264,7 +264,7 @@ project "playground"
 	removeplatforms { "ps2" } -- for now
 
 project "imguitest"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("imguitest")
 	entrypoint("WinMainCRTStartup")
@@ -281,7 +281,7 @@ project "lights"
 
 
 project "subrast"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("subrast")
 	entrypoint("WinMainCRTStartup")
@@ -289,7 +289,7 @@ project "subrast"
 	removeplatforms { "ps2" }
 
 project "camera"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("camera")
 	entrypoint("WinMainCRTStartup")
@@ -297,7 +297,7 @@ project "camera"
 	removeplatforms { "ps2" }
 
 project "im2d"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("im2d")
 	entrypoint("WinMainCRTStartup")
@@ -305,7 +305,7 @@ project "im2d"
 	removeplatforms { "ps2" }
 
 project "im3d"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("im3d")
 	entrypoint("WinMainCRTStartup")
@@ -348,7 +348,7 @@ project "ps2test"
 --	links { "librw" }
 
 project "hopalong"
-	kind "WindowedApp"
+	kind "ConsoleApp"
 	characterset ("MBCS")
 	skeltool("hopalong")
 	entrypoint("WinMainCRTStartup")

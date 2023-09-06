@@ -12,10 +12,9 @@ static rw::Texture* g_FontTexture;
 static Im2DVertex* g_vertbuf;
 static int g_vertbufSize;
 
+#ifndef RW_VULKAN
 void ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 {
-
-#ifndef RW_VULKAN
 	ImGuiIO& io = ImGui::GetIO();
 
 	// minimized
@@ -109,9 +108,9 @@ void ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 	rw::SetRenderState(rw::TEXTUREADDRESSV, addrV);
 	rw::SetRenderState(rw::TEXTUREFILTER, filter);
 	rw::SetRenderState(rw::CULLMODE, cullmode);
-#endif
-}
 
+}
+#endif
 bool ImGui_ImplRW_Init(void)
 {
 	using namespace sk;

@@ -17,6 +17,7 @@ namespace maple
 	class IndexBuffer;
 	class DescriptorSet;
 	class Shader;
+	class Pipeline;
 }
 
 namespace rw
@@ -295,6 +296,7 @@ namespace rw
 		// per Mesh
 		void setTexture(std::shared_ptr<maple::DescriptorSet> sets, int32 n, Texture* tex);
 		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp = 0.0f);
+		std::shared_ptr<maple::Pipeline> getPipeline(uint32_t stride);
 
 		inline void setMaterial(const std::shared_ptr<maple::DescriptorSet>& sets,uint32 flags, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp = 0.0f)
 		{

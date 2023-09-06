@@ -22,8 +22,8 @@
 #include "rwvkshader.h"
 
 #include "Textures.h"
+#include "ImageConvert.h"
 #include <vulkan/vulkan.h>
-
 
 
 #define PLUGIN_ID ID_DRIVER
@@ -87,11 +87,11 @@ namespace rw
 				natras->bpp = 4;
 				raster->depth = 32;
 				break;
-			case Raster::C888:
-				natras->internalFormat = maple::TextureFormat::RGB8;
+			case Raster::C888://Vulkan did not support RGB8, so using RGBA8 instead.
+				natras->internalFormat = maple::TextureFormat::RGBA8;
 				natras->hasAlpha = 0;
-				natras->bpp = 3;
-				raster->depth = 24;
+				natras->bpp = 4;
+				raster->depth = 32;
 				break;
 			case Raster::C1555:
 				natras->internalFormat = maple::TextureFormat::R5G5B5A1;
@@ -126,31 +126,45 @@ namespace rw
 			return raster;
 		}
 
-		std::shared_ptr<maple::Texture> getTexture(int32_t textureId) 
+		std::shared_ptr<maple::Texture> getTexture(int32_t textureId)
 		{
+			if (textureId < 0)
+				return nullptr;
 			return textureCache[textureId];
 		}
 
 		static Raster* rasterCreateCameraTexture(Raster* raster)
 		{
-			MAPLE_ASSERT(false, "TODO..");
-
-			auto ret = rasterCreateTexture(raster);
-			if (ret != nullptr)
+			if (raster->format & (Raster::PAL4 | Raster::PAL8))
 			{
-				VulkanRaster* natras = GET_VULKAN_RASTEREXT(raster);
-
+				RWERROR((ERR_NOTEXTURE));
+				return nullptr;
 			}
-			return ret;
+
+			VulkanRaster* natras = GET_VULKAN_RASTEREXT(raster);
+
+			natras->internalFormat = maple::TextureFormat::RGBA8;
+			natras->hasAlpha = 1;
+			natras->bpp = 4;
+			raster->depth = 32;
+			raster->stride = raster->width * natras->bpp;
+
+			natras->autogenMipmap = (raster->format & (Raster::MIPMAP | Raster::AUTOMIPMAP)) == (Raster::MIPMAP | Raster::AUTOMIPMAP);
+			auto texture = maple::Texture2D::create();
+			natras->textureId = textureCache.size();
+			textureCache.emplace_back(texture);
+			texture->buildTexture(natras->internalFormat, raster->width, raster->height, false, false, false, natras->numLevels > 1);
+			natras->maxAnisotropy = 1;
+			return raster;
 		}
 
 		static Raster* rasterCreateCamera(Raster* raster)
 		{
 			VulkanRaster* natras = GET_VULKAN_RASTEREXT(raster);
-			raster->format = Raster::C888;
-			natras->internalFormat = maple::TextureFormat::RGB8;
+			raster->format = Raster::C8888;
+			natras->internalFormat = maple::TextureFormat::RGBA8;
 			natras->hasAlpha = 0;
-			natras->bpp = 3;
+			natras->bpp = 4;
 			natras->autogenMipmap = 0;
 			return raster;
 		}
@@ -233,62 +247,31 @@ namespace rw
 		}
 
 		// Almost the same as d3d9 and ps2 function
-		bool32 imageFindRasterFormat(Image* img, int32 type,
-			int32* pWidth, int32* pHeight, int32* pDepth, int32* pFormat)
+		bool32 imageFindRasterFormat(Image* img, int32 type, int32* pWidth, int32* pHeight, int32* pDepth, int32* pFormat)
 		{
 			int32 width, height, depth, format;
-
 			assert((type & 0xF) == Raster::TEXTURE);
 
-			//	for(width = 1; width < img->width; width <<= 1);
-			//	for(height = 1; height < img->height; height <<= 1);
-			// Perhaps non-power-of-2 textures are acceptable?
 			width = img->width;
 			height = img->height;
-
 			depth = img->depth;
-
-			if (depth <= 8)
-				depth = 32;
-
-			switch (depth)
-			{
-			case 32:
-				if (img->hasAlpha())
-					format = Raster::C8888;
-				else
-				{
-					format = Raster::C888;
-					depth = 24;
-				}
-				break;
-			case 24:
-				format = Raster::C888;
-				break;
-			case 16:
-				format = Raster::C1555;
-				break;
-
-			case 8:
-			case 4:
-			default:
-				RWERROR((ERR_INVRASTER));
-				return 0;
-			}
-
+			depth = 32;
+			format = Raster::C8888;
 			format |= type;
-
 			*pWidth = width;
 			*pHeight = height;
 			*pDepth = depth;
 			*pFormat = format;
-
 			return 1;
 		}
 
 		bool32 rasterFromImage(Raster* raster, Image* image)
 		{
-			return false;
+			VulkanRaster* natras = GET_VULKAN_RASTEREXT(raster);
+			auto vkTexture = getTexture(natras->textureId);
+			image->convertTo32();
+			std::static_pointer_cast<maple::Texture2D>(vkTexture)->update(0, 0, image->width, image->height, image->pixels);
+			return true;
 		}
 
 		Image* rasterToImage(Raster* raster)
@@ -351,11 +334,11 @@ namespace rw
 			int32 flags = stream->readI32();
 			int32 compression = stream->readI32();
 
-		/*	if (subplatform != gl3Caps.gles) {
-				tex->destroy();
-				RWERROR((ERR_PLATFORM, platform));
-				return nil;
-			}*/
+			/*	if (subplatform != gl3Caps.gles) {
+					tex->destroy();
+					RWERROR((ERR_PLATFORM, platform));
+					return nil;
+				}*/
 
 			Raster* raster;
 			VulkanRaster* natras;

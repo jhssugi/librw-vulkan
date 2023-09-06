@@ -105,7 +105,7 @@ namespace rw
 					currentPipeline->end(cmdBuffer);
 				}
 				currentPipeline = pipeline;
-				pipeline->bind(cmdBuffer);
+				pipeline->bind(cmdBuffer, maple::ivec4{vkGlobals.presentOffX,vkGlobals.presentOffY,vkGlobals.presentWidth,vkGlobals.presentHeight });
 				pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
 			}
 
