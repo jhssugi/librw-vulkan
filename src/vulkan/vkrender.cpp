@@ -49,7 +49,6 @@ namespace rw
 			int32_t cullMode = rw::GetRenderState(rw::CULLMODE);
 
 			info.shader = getShader(currentShader->shaderId);
-
 			info.drawType = drawType;
 			info.depthTarget = vkGlobals.currentDepth;
 			info.colorTargets[0] = vkGlobals.colorTarget;

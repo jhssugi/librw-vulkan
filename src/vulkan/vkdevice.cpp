@@ -912,7 +912,7 @@ namespace rw
 
 		void flushFog(std::shared_ptr<maple::DescriptorSet> dest) 
 		{
-			if (stateDirty)
+			//if (stateDirty)
 			{
 				switch (alphaFunc) {
 				case ALPHAALWAYS:

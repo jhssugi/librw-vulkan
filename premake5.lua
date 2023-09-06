@@ -131,7 +131,7 @@ workspace "librw"
 		includedirs { path.join(_OPTIONS["glfwdir64"], "include") }
 		
 	filter "action:vs*"
-		buildoptions { "/wd4996", "/wd4244" }
+		buildoptions { "/wd4996", "/wd4244", "/MP" }
 
 	filter { "platforms:win*gl3", "action:not vs*" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
