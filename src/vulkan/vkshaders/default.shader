@@ -14,10 +14,12 @@ layout(location = 0) out vec4 v_color;
 layout(location = 1) out vec2 v_tex0;
 layout(location = 2) out float v_fog;
 
-/*layout(push_constant) uniform PushConsts 
+layout(push_constant) uniform PushConsts 
 {
 	mat4 u_world;
-};*/
+	mat4 u_proj;
+	mat4 u_view;
+};
 
 
 layout(set = 0, binding = 0, std140) uniform State
@@ -27,15 +29,8 @@ layout(set = 0, binding = 0, std140) uniform State
 	vec4 u_fogColor;
 };
 
-layout(set = 0, binding = 1, std140) uniform Scene
-{
-	mat4 u_proj;
-	mat4 u_view;
-};
-
 layout(set = 2, binding = 0, std140) uniform Object
 {
-	mat4 u_world;
 	vec4 u_ambLight;
 	vec4 u_lightParams[MAX_LIGHTS];	// type, radius, minusCosAngle, hardSpot
 	vec4 u_lightPosition[MAX_LIGHTS];
@@ -113,7 +108,6 @@ void main(void)
 	vec4 Vertex = u_world * vec4(in_pos, 1.0);
 	gl_Position = u_proj * u_view * Vertex;
 	vec3 Normal = mat3(u_world) * in_normal;
-
 	v_tex0 = in_tex0;
 	v_color = in_color;
 	v_color.rgb += u_ambLight.rgb*surfAmbient;
@@ -135,11 +129,6 @@ layout(set = 0, binding = 0, std140) uniform State
 
 layout(set = 1, binding = 1) uniform sampler2D tex0;
 
-#define u_fogStart (u_fogData.x)
-#define u_fogEnd (u_fogData.y)
-#define u_fogRange (u_fogData.z)
-#define u_fogDisable (u_fogData.w)
-
 layout(location = 0) out vec4 fragColor;
 
 layout(location = 0) in vec4 v_color;
@@ -157,7 +146,7 @@ void DoAlphaTest(float a)
 
 void main(void)
 {
-	vec4 color = v_color*texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));
+	vec4 color = v_color*texture(tex0, vec2(v_tex0.x, v_tex0.y));
 	color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);
 	DoAlphaTest(color.a);
 	fragColor = color;

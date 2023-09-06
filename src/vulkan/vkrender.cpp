@@ -39,10 +39,9 @@ namespace rw
 
 		static std::unordered_map<Atomic*, maple::DescriptorSet::Ptr> objectSets;
 
-		maple::Pipeline::Ptr getPipeline(uint32_t stride)
+		maple::Pipeline::Ptr getPipeline(maple::DrawType drawType)
 		{
 			maple::PipelineInfo info;
-			info.vertexStride = stride;
 			int32_t srcBlend = rw::GetRenderState(rw::SRCBLEND);
 			int32_t dstBlend = rw::GetRenderState(rw::DESTBLEND);
 			int32_t zTest = rw::GetRenderState(rw::ZTESTENABLE);
@@ -50,6 +49,8 @@ namespace rw
 			int32_t cullMode = rw::GetRenderState(rw::CULLMODE);
 
 			info.shader = getShader(currentShader->shaderId);
+
+			info.drawType = drawType;
 			info.depthTarget = vkGlobals.currentDepth;
 			info.colorTargets[0] = vkGlobals.colorTarget;
 			info.depthFunc = maple::StencilType::LessOrEqual;//zTest ? maple::StencilType::LessOrEqual : maple::StencilType::Always;
@@ -88,7 +89,7 @@ namespace rw
 		void drawInst_simple(maple::DescriptorSet::Ptr objSet, InstanceDataHeader* header, InstanceData* inst)
 		{
 			auto set = getMaterialDescriptorSet(inst->material);
-			auto pipeline = getPipeline(header->attribDesc[0].stride);
+			auto pipeline = getPipeline(maple::DrawType::Triangle);
 			flushCache(pipeline->getShader(), objSet);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
 			header->vertexBufferGPU->bind(cmdBuffer, pipeline.get());

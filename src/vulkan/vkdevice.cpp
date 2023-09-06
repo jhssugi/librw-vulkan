@@ -63,19 +63,25 @@ namespace rw
 			RGBAf fogColor;
 		};
 
-		struct UniformScene
-		{
-			float32 proj[16];
-			float32 view[16];
-		};
+		/*	struct UniformScene
+			{
+				float32 proj[16];
+				float32 view[16];
+			};*/
 
 #	define MAX_LIGHTS 8
 
 		//static RawMatrix world;
 
-		struct UniformObject
+		struct PushConsts
 		{
 			RawMatrix world;
+			float32 proj[16];
+			float32 view[16];
+		};
+
+		struct UniformObject
+		{
 			RGBAf     ambLight;
 			struct
 			{
@@ -94,11 +100,12 @@ namespace rw
 
 		std::shared_ptr <maple::DescriptorSet> commonSet;
 
+
 		static GLuint        whitetex;
 		static UniformState  uniformState;
-		static UniformScene  uniformScene;
+		//static UniformScene  uniformScene;
 		static UniformObject uniformObject;
-
+		static PushConsts	 pushConsts;
 
 		Shader* defaultShader, * defaultShader_noAT;
 		Shader* defaultShader_fullLight, * defaultShader_fullLight_noAT;
@@ -396,6 +403,30 @@ namespace rw
 
 		static void setRasterStage(uint32 stage, Raster* raster)
 		{
+			bool32 alpha;
+			if (raster != rwStateCache.texstage[stage].raster) {
+				rwStateCache.texstage[stage].raster = raster;
+
+				if (raster)
+				{
+					VulkanRaster* natras = PLUGINOFFSET(VulkanRaster, raster, nativeRasterOffset);
+					alpha = natras->hasAlpha;
+				}
+				else
+				{
+					alpha = 0;
+				}
+
+				if (stage == 0) {
+					if (alpha != rwStateCache.textureAlpha) {
+						rwStateCache.textureAlpha = alpha;
+						if (!rwStateCache.vertexAlpha) {
+							setAlphaBlend(alpha);
+							setAlphaTest(alpha);
+						}
+					}
+				}
+			}
 		}
 
 		void evictRaster(Raster* raster)
@@ -734,7 +765,7 @@ namespace rw
 
 		void setWorldMatrix(Matrix* mat)
 		{
-			convMatrix(&uniformObject.world, mat);
+			convMatrix(&pushConsts.world, mat);
 			objectDirty = 1;
 		}
 
@@ -810,13 +841,13 @@ namespace rw
 
 		void setProjectionMatrix(float32* mat)
 		{
-			memcpy(&uniformScene.proj, mat, 64);
+			memcpy(&pushConsts.proj, mat, 64);
 			sceneDirty = 1;
 		}
 
 		void setViewMatrix(float32* mat)
 		{
-			memcpy(&uniformScene.view, mat, 64);
+			memcpy(&pushConsts.view, mat, 64);
 			sceneDirty = 1;
 		}
 
@@ -838,23 +869,18 @@ namespace rw
 
 		void flushCache(std::shared_ptr<maple::Shader> shader, std::shared_ptr<maple::DescriptorSet> dest)
 		{
-			if (objectDirty)
+			if (objectDirty && dest)
 			{
-				ubo_object->setData(&uniformObject);
 				objectDirty = 0;
 				dest->setUniformBufferData("Object", &uniformObject);
 			}
 
-			/*if (auto consts = shader->getPushConstant(0))
+			if (shader != nullptr)
 			{
-				consts->setData(&world);
-			}*/
-
-			if (sceneDirty)
-			{
-				ubo_scene->setData(&uniformScene);
-				sceneDirty = 0;
-				commonSet->setBuffer("Scene", ubo_scene);
+				if (auto consts = shader->getPushConstant(0)) 
+				{
+					consts->setData(&pushConsts);
+				}
 			}
 
 			if (stateDirty)
@@ -880,7 +906,36 @@ namespace rw
 				uniformState.fogRange = 1.0f / (rwStateCache.fogStart - rwStateCache.fogEnd);
 				ubo_state->setData(&uniformState);
 				stateDirty = 0;
-				commonSet->setBuffer("State", ubo_state);
+				commonSet->setUniformBufferData("State", &uniformState);
+			}
+		}
+
+		void flushFog(std::shared_ptr<maple::DescriptorSet> dest) 
+		{
+			if (stateDirty)
+			{
+				switch (alphaFunc) {
+				case ALPHAALWAYS:
+				default:
+					uniformState.alphaRefLow = -1000.0f;
+					uniformState.alphaRefHigh = 1000.0f;
+					break;
+				case ALPHAGREATEREQUAL:
+					uniformState.alphaRefLow = alphaRef;
+					uniformState.alphaRefHigh = 1000.0f;
+					break;
+				case ALPHALESS:
+					uniformState.alphaRefLow = -1000.0f;
+					uniformState.alphaRefHigh = alphaRef;
+					break;
+				}
+				uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
+				uniformState.fogStart = rwStateCache.fogStart;
+				uniformState.fogEnd = rwStateCache.fogEnd;
+				uniformState.fogRange = 1.0f / (rwStateCache.fogStart - rwStateCache.fogEnd);
+				ubo_state->setData(&uniformState);
+				stateDirty = 0;
+				dest->setUniformBufferData("State", &uniformState);
 			}
 		}
 
@@ -1061,7 +1116,7 @@ namespace rw
 			bool setScissor = cam->frameBuffer != cam->frameBuffer->parent;
 			if (setScissor) 
 			{
-				auto pipeline = getPipeline(0);
+				auto pipeline = getPipeline(maple::DrawType::Triangle);
 
 				pipeline->bind(cmdBuffer);
 
@@ -1286,7 +1341,7 @@ namespace rw
 			defaultShader_fullLight_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n#define NO_ALPHATEST\n");
 
 			ubo_state = maple::UniformBuffer::create(sizeof(UniformState), &uniformState);
-			ubo_scene = maple::UniformBuffer::create(sizeof(UniformScene), &uniformScene);
+			//ubo_scene = maple::UniformBuffer::create(sizeof(UniformScene), &uniformScene);
 			ubo_object = maple::UniformBuffer::create(sizeof(UniformObject), &uniformObject);
 
 			commonSet = maple::DescriptorSet::create({ 0, getShader(defaultShader->shaderId).get() });
@@ -1414,6 +1469,6 @@ namespace rw
 
 void ImGui_ImplRW_RenderDrawLists(ImDrawData*)
 {
-	rw::vulkan::imRender->render();
+	rw::vulkan::imRender->render(nullptr);
 }
 #endif

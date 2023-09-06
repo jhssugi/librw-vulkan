@@ -105,7 +105,7 @@ namespace rw
 		{
 			V3d     position;
 			V3d     normal;        // librw extension
-			uint8   r, g, b, a;
+			float32   r, g, b, a;
 			float32 u, v;
 
 			void setX(float32 x)
@@ -134,10 +134,10 @@ namespace rw
 			}
 			void setColor(uint8 r, uint8 g, uint8 b, uint8 a)
 			{
-				this->r = r;
-				this->g = g;
-				this->b = b;
-				this->a = a;
+				this->r = r / 255.f;
+				this->g = g / 255.f;
+				this->b = b / 255.f;
+				this->a = a / 255.f;
 			}
 			void setU(float32 u)
 			{
@@ -191,7 +191,7 @@ namespace rw
 		struct Im2DVertex
 		{
 			float32 x, y, z, w;
-			uint8   r, g, b, a;
+			float32 r, g, b, a;
 			float32 u, v;
 
 			void setScreenX(float32 x)
@@ -217,10 +217,10 @@ namespace rw
 			}
 			void setColor(uint8 r, uint8 g, uint8 b, uint8 a)
 			{
-				this->r = r;
-				this->g = g;
-				this->b = b;
-				this->a = a;
+				this->r = r / 255.f;
+				this->g = g / 255.f;
+				this->b = b / 255.f;
+				this->a = a / 255.f;
 			}
 			void setU(float32 u, float recipz)
 			{
@@ -296,7 +296,7 @@ namespace rw
 		// per Mesh
 		void setTexture(std::shared_ptr<maple::DescriptorSet> sets, int32 n, Texture* tex);
 		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp = 0.0f);
-		std::shared_ptr<maple::Pipeline> getPipeline(uint32_t stride);
+		std::shared_ptr<maple::Pipeline> getPipeline(maple::DrawType drawType);
 
 		inline void setMaterial(const std::shared_ptr<maple::DescriptorSet>& sets,uint32 flags, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp = 0.0f)
 		{
@@ -319,6 +319,8 @@ namespace rw
 		uint32 bindTexture(uint32 texid);
 
 		void flushCache(std::shared_ptr<maple::Shader> shader, std::shared_ptr<maple::DescriptorSet> dest);
+
+		void flushFog(std::shared_ptr<maple::DescriptorSet> dest);
 
 		class ObjPipeline : public rw::ObjPipeline
 		{
