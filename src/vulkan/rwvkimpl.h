@@ -30,6 +30,7 @@ namespace rw
 		void im3DRenderPrimitive(PrimitiveType primType);
 		void im3DRenderIndexedPrimitive(PrimitiveType primType, void* indices, int32 numIndices);
 		void im3DEnd(void);
+		void imFlush();
 
 		struct DisplayMode
 		{

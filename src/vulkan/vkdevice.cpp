@@ -1469,6 +1469,7 @@ namespace rw
 
 void ImGui_ImplRW_RenderDrawLists(ImDrawData*)
 {
+	rw::vulkan::imFlush();
 	rw::vulkan::imRender->render(nullptr);
 }
 #endif
