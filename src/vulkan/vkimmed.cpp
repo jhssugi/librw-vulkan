@@ -30,7 +30,7 @@ namespace rw
 {
 	namespace vulkan
 	{
-//simple way to implement. still have performance issue.
+		//simple way to implement. still have performance issue.
 
 		RGBA im3dMaterialColor = { 255, 255, 255, 255 };
 		SurfaceProperties im3dSurfaceProps = { 1.0f, 1.0f, 1.0f };
@@ -59,17 +59,14 @@ namespace rw
 			maple::CullMode::Front
 		};
 
-		struct ImObject
-		{
-			//using Ptr = std::shared_ptr<ImObject>;
-			maple::VertexBuffer::Ptr vertexBuffer;
-			maple::IndexBuffer::Ptr indexBuffer;
+		static maple::VertexBuffer::Ptr vertexBuffer;
+		static maple::IndexBuffer::Ptr indexBuffer;
+		static maple::DescriptorSet::Ptr objectSet;
 
-			maple::DescriptorSet::Ptr objectSet;
-			maple::DescriptorSet::Ptr lightSet;
-		};
 
-		std::vector<ImObject> imObjects;
+		static maple::VertexBuffer::Ptr vertexBuffer3D;
+		static maple::IndexBuffer::Ptr indexBuffer3D;
+		static maple::DescriptorSet::Ptr im3dSet;
 
 
 		maple::Pipeline::Ptr createPipeline(maple::DrawType drawType, int32_t shaderId)
@@ -94,6 +91,9 @@ namespace rw
 #include "vkshaders/im2d.shader.h"
 			const std::string defaultTxt{ (char*)__im2d_shader, __im2d_shader_len };
 			im2dShader = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+			vertexBuffer = maple::VertexBuffer::create(nullptr, sizeof(Im2DVertex) * STARTVERTICES);
+			indexBuffer = maple::IndexBuffer::create((uint16_t*)nullptr, STARTINDICES);
+			objectSet = maple::DescriptorSet::create({ 0,getShader(im2dShader->shaderId).get() });
 		}
 
 		void closeIm2D(void)
@@ -152,49 +152,45 @@ namespace rw
 		{
 			auto pipeline = createPipeline(primTypeMap[primType], im2dShader->shaderId);
 
-			auto & currentObject = imObjects.emplace_back();
+			vertexBuffer->setData(numVertices * sizeof(Im2DVertex), vertices);
 
-			currentObject.vertexBuffer = maple::VertexBuffer::create(vertices, numVertices * sizeof(Im2DVertex));
-			currentObject.objectSet = maple::DescriptorSet::create({ 0,getShader(im2dShader->shaderId).get() });
-
-			im2DSetXform(currentObject.objectSet);
-			flushFog(currentObject.objectSet);
+			im2DSetXform(objectSet);
+			flushFog(objectSet);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-			currentObject.vertexBuffer->bind(cmdBuffer, nullptr);
-			currentObject.objectSet->update(cmdBuffer);
+			vertexBuffer->bind(cmdBuffer, nullptr);
+			objectSet->update(cmdBuffer);
 			pipeline->bind(cmdBuffer);
 			pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
-			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { currentObject.objectSet });
+			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { objectSet });
 			maple::RenderDevice::get()->drawArraysInternal(cmdBuffer, primTypeMap[primType], numVertices);
 			pipeline->end(cmdBuffer);
+			cmdBuffer->submit();
 		}
 
 		void im2DRenderIndexedPrimitive(PrimitiveType primType,
 			void* vertices, int32 numVertices,
 			void* indices, int32 numIndices)
 		{
+
 			auto pipeline = createPipeline(primTypeMap[primType], im2dShader->shaderId);
 
-			auto& currentObject = imObjects.emplace_back();
+			vertexBuffer->setData(numVertices * sizeof(Im2DVertex), vertices);
+			indexBuffer->setData((uint16_t*)indices, numIndices);
 
-
-			currentObject.vertexBuffer = maple::VertexBuffer::create(vertices, numVertices * sizeof(Im2DVertex));
-			currentObject.indexBuffer = maple::IndexBuffer::create((uint16_t*)indices, numIndices);
-			currentObject.objectSet = maple::DescriptorSet::create({ 0,getShader(im2dShader->shaderId).get() });
-
-			im2DSetXform(currentObject.objectSet);
-			flushFog(currentObject.objectSet);
+			im2DSetXform(objectSet);
+			flushFog(objectSet);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-		
-			currentObject.vertexBuffer->bind(cmdBuffer, nullptr);
-			currentObject.indexBuffer->bind(cmdBuffer);
-			currentObject.objectSet->update(cmdBuffer);
+
+			vertexBuffer->bind(cmdBuffer, nullptr);
+			indexBuffer->bind(cmdBuffer);
+			objectSet->update(cmdBuffer);
 
 			pipeline->bind(cmdBuffer);
 			pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
-			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { currentObject.objectSet });
+			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { objectSet });
 			maple::RenderDevice::get()->drawIndexedInternal(cmdBuffer, primTypeMap[primType], numIndices);
 			pipeline->end(cmdBuffer);
+			cmdBuffer->submit();
 		}
 
 		void openIm3D(void)
@@ -202,6 +198,10 @@ namespace rw
 #include "vkshaders/im3d.shader.h"
 			const std::string defaultTxt{ (char*)__im3d_shader, __im3d_shader_len };
 			im3dShader = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+
+			vertexBuffer3D = maple::VertexBuffer::create(nullptr, sizeof(Im3DVertex) * STARTVERTICES);
+			indexBuffer3D = maple::IndexBuffer::create((uint16_t*)nullptr, STARTINDICES);
+			im3dSet = maple::DescriptorSet::create({ 0,getShader(im3dShader->shaderId).get() });
 		}
 
 		void closeIm3D(void)
@@ -210,8 +210,6 @@ namespace rw
 		}
 
 		static int32_t g_numVertices;
-
-
 
 		//begin
 		void im3DTransform(void* vertices, int32 numVertices, Matrix* world, uint32 flags)
@@ -227,6 +225,7 @@ namespace rw
 			if (flags & im3d::LIGHTING)
 			{
 				/*setMaterial(materialSet, im3dMaterialColor, im3dSurfaceProps);*/
+				MAPLE_ASSERT(false, "TODO..");
 				int32 vsBits = lightingCB();
 				defaultShader_fullLight->use();
 			}
@@ -235,24 +234,22 @@ namespace rw
 				im3dShader->use();
 			}
 
-			auto &currentObject = imObjects.emplace_back();
-			currentObject.vertexBuffer = maple::VertexBuffer::create(vertices, numVertices * sizeof(Im3DVertex));
-			currentObject.objectSet = maple::DescriptorSet::create({ 0,getShader(currentShader->shaderId).get() });
-			rw::Raster *rast = (rw::Raster*)rw::GetRenderStatePtr(rw::TEXTURERASTER);
+			vertexBuffer3D->setData(numVertices * sizeof(Im3DVertex), vertices);
+			rw::Raster* rast = (rw::Raster*)rw::GetRenderStatePtr(rw::TEXTURERASTER);
 
-			if (rast != nullptr) 
+			if (rast != nullptr)
 			{
 				auto vkRst = GET_VULKAN_RASTEREXT(rast);
-				currentObject.objectSet->setTexture("tex0", getTexture(vkRst->textureId));
+				im3dSet->setTexture("tex0", getTexture(vkRst->textureId));
 			}
 			else
 			{
-				currentObject.objectSet->setTexture("tex0", maple::Texture2D::getTexture1X1White());
+				im3dSet->setTexture("tex0", maple::Texture2D::getTexture1X1White());
 			}
 
 			if ((flags & im3d::VERTEXUV) == 0)
 			{
-				currentObject.objectSet->setTexture("tex0", maple::Texture2D::getTexture1X1White());
+				im3dSet->setTexture("tex0", maple::Texture2D::getTexture1X1White());
 			}
 			g_numVertices = numVertices;
 		}
@@ -261,13 +258,13 @@ namespace rw
 		{
 			auto pipeline = createPipeline(primTypeMap[primType], currentShader->shaderId);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-			auto& currentObject = imObjects.back();
-			currentObject.vertexBuffer->bind(cmdBuffer, nullptr);
 
-			flushCache(getShader(currentShader->shaderId), currentObject.lightSet);
-			flushFog(currentObject.objectSet);
-			
-			currentObject.objectSet->update(cmdBuffer);
+			vertexBuffer3D->bind(cmdBuffer, nullptr);
+
+			flushCache(getShader(currentShader->shaderId), nullptr);
+			flushFog(im3dSet);
+
+			im3dSet->update(cmdBuffer);
 
 			pipeline->bind(cmdBuffer);
 			pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
@@ -279,7 +276,7 @@ namespace rw
 			}
 			else
 			{
-				maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { currentObject.objectSet });
+				maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { im3dSet });
 			}
 
 			maple::RenderDevice::get()->drawArraysInternal(cmdBuffer, primTypeMap[primType], g_numVertices);
@@ -291,19 +288,15 @@ namespace rw
 		{
 			auto pipeline = createPipeline(primTypeMap[primType], currentShader->shaderId);
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-			auto& currentObject = imObjects.back();
 
-			if (currentObject.indexBuffer== nullptr) 
-			{
-				currentObject.indexBuffer = maple::IndexBuffer::create((uint16_t*)indices, numIndices);
-			}
+			indexBuffer3D->setData((uint16_t*)indices, numIndices);
 
-			currentObject.indexBuffer->bind(cmdBuffer);
-			currentObject.vertexBuffer->bind(cmdBuffer, nullptr);
+			indexBuffer3D->bind(cmdBuffer);
+			vertexBuffer3D->bind(cmdBuffer, nullptr);
 
-			flushCache(getShader(currentShader->shaderId), currentObject.lightSet);
-			flushFog(currentObject.objectSet);
-			currentObject.objectSet->update(cmdBuffer);
+			flushCache(getShader(currentShader->shaderId), nullptr);
+			flushFog(im3dSet);
+			im3dSet->update(cmdBuffer);
 
 			pipeline->bind(cmdBuffer);
 			pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
@@ -314,7 +307,7 @@ namespace rw
 			}
 			else
 			{
-				maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { currentObject.objectSet });
+				maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { im3dSet });
 			}
 
 			maple::RenderDevice::get()->drawIndexedInternal(cmdBuffer, primTypeMap[primType], numIndices);
@@ -323,13 +316,13 @@ namespace rw
 
 		void im3DEnd(void)
 		{
+			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
+			cmdBuffer->submit();
 		}
 
 		void imFlush()
 		{
-			imObjects.clear();
 		}
-
 	}        // namespace vulkan
 }        // namespace rw
 
