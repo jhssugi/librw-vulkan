@@ -5,7 +5,7 @@ namespace maple
 	class Texture2D;
 	class DescriptorSet;
 }
-
+#include <string>
 namespace rw
 {
 	namespace vulkan
@@ -56,7 +56,7 @@ namespace rw
 
 			// for opening the window
 			int         winWidth, winHeight;
-			const char* winTitle;
+			std::string winTitle;
 			uint32      numSamples;
 
 			std::shared_ptr<maple::Texture> currentDepth;

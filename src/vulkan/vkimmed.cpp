@@ -81,7 +81,8 @@ namespace rw
 			info.cullMode = cullModes[rw::GetRenderState(rw::CULLMODE)];
 			info.blendMode = maple::BlendMode::SrcAlphaOneMinusSrcAlpha;
 			info.transparencyEnabled = true;
-			info.depthTest = false;
+			info.depthTest = rw::GetRenderState(rw::ZTESTENABLE);
+			info.depthWriteEnable = rw::GetRenderState(rw::ZWRITEENABLE);
 			return maple::Pipeline::get(info);
 		}
 

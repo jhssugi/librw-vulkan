@@ -941,8 +941,15 @@ namespace rw
 
 		static void setFrameBuffer(Camera* cam)
 		{
-			VulkanRaster* natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
-			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
+			Raster* fbuf = cam->frameBuffer->parent;
+			Raster* zbuf = cam->zBuffer->parent;
+			assert(fbuf);
+
+			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(fbuf);
+			VulkanRaster* natras = GET_VULKAN_RASTEREXT(zbuf);
+
+			assert(fbuf->type == Raster::CAMERA || fbuf->type == Raster::CAMERATEXTURE);
+
 			vkGlobals.currentDepth = getTexture(natras->textureId);
 			vkGlobals.colorTarget = getTexture(natras2->textureId);
 		}
@@ -968,7 +975,7 @@ namespace rw
 			{
 				r.x = frameBuffer->offsetX;
 				// GL y offset is from bottom
-				r.y = r.h - frameBuffer->height - frameBuffer->offsetY;
+				r.y = frameBuffer->offsetY;
 				r.w = frameBuffer->width;
 				r.h = frameBuffer->height;
 			}
@@ -1240,7 +1247,7 @@ namespace rw
 		{
 			vkGlobals.winWidth = openparams->width;
 			vkGlobals.winHeight = openparams->height;
-			vkGlobals.winTitle = openparams->windowtitle;
+			vkGlobals.winTitle = openparams->windowtitle + std::string(" (Vulkan and Raytracing-ON)");
 			vkGlobals.pWindow = openparams->window;
 
 			/* Init GLFW */
@@ -1293,9 +1300,9 @@ namespace rw
 				glfwWindowHint(GLFW_SAMPLES, vkGlobals.numSamples);
 
 			if (mode->flags & VIDEOMODEEXCLUSIVE)
-				win = glfwCreateWindow(mode->mode.width, mode->mode.height, vkGlobals.winTitle, vkGlobals.monitor, nil);
+				win = glfwCreateWindow(mode->mode.width, mode->mode.height, vkGlobals.winTitle.c_str(), nil, nil);// vkGlobals.monitor
 			else
-				win = glfwCreateWindow(vkGlobals.winWidth, vkGlobals.winHeight, vkGlobals.winTitle, nil, nil);
+				win = glfwCreateWindow(vkGlobals.winWidth, vkGlobals.winHeight, vkGlobals.winTitle.c_str(), nil, nil);
 
 			if (win == nil)
 			{
@@ -1323,6 +1330,7 @@ namespace rw
 
 		static int initVulkan(void)
 		{
+			resetRenderState();
 			maple::Console::init();
 			maple::GraphicsContext::get()->init(vkGlobals.window, vkGlobals.winWidth, vkGlobals.winHeight);
 			maple::RenderDevice::get()->init();
