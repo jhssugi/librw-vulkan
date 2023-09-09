@@ -1299,8 +1299,12 @@ namespace rw
 			if (vkGlobals.numSamples > 1)
 				glfwWindowHint(GLFW_SAMPLES, vkGlobals.numSamples);
 
-			if (mode->flags & VIDEOMODEEXCLUSIVE)
+			if(mode->flags & VIDEOMODEEXCLUSIVE)
+			{
 				win = glfwCreateWindow(mode->mode.width, mode->mode.height, vkGlobals.winTitle.c_str(), nil, nil);// vkGlobals.monitor
+				vkGlobals.winWidth = mode->mode.width;
+				vkGlobals.winHeight= mode->mode.height;
+			}
 			else
 				win = glfwCreateWindow(vkGlobals.winWidth, vkGlobals.winHeight, vkGlobals.winTitle.c_str(), nil, nil);
 

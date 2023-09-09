@@ -189,7 +189,9 @@ void ImGui_ImplRW_NewFrame(float timeDelta)
 
 	ImGuiIO& io = ImGui::GetIO();
 
+#ifdef ENABLE_SKELETON
 	io.DisplaySize = ImVec2(sk::globals.width, sk::globals.height);
+#endif
 	io.DeltaTime = timeDelta;
 
 	io.KeyCtrl = io.KeysDown[sk::KEY_LCTRL] || io.KeysDown[sk::KEY_RCTRL];
@@ -197,14 +199,18 @@ void ImGui_ImplRW_NewFrame(float timeDelta)
 	io.KeyAlt = io.KeysDown[sk::KEY_LALT] || io.KeysDown[sk::KEY_RALT];
 	io.KeySuper = false;
 
+#ifdef ENABLE_SKELETON
 	if (io.WantSetMousePos)
 		sk::SetMousePosition(io.MousePos.x, io.MousePos.y);
+#endif
+
 #ifdef RW_VULKAN
 	ImGui_ImplVulkan_NewFrame();
 #endif
 	ImGui::NewFrame();
 }
 
+#ifdef ENABLE_SKELETON
 sk::EventStatus ImGuiEventHandler(sk::Event e, void* param)
 {
 	using namespace sk;
@@ -242,3 +248,4 @@ sk::EventStatus ImGuiEventHandler(sk::Event e, void* param)
 	}
 	return EVENTPROCESSED;
 }
+#endif
