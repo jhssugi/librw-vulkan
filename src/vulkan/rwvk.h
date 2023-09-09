@@ -361,8 +361,13 @@ namespace rw
 			bool hasAlpha;
 			bool autogenMipmap;
 			int8 numLevels;
-			int32 maxAnisotropy;
 			int32_t textureId = -1;
+
+			//cache
+			uint8 filterMode;
+			uint8 addressU;
+			uint8 addressV;
+			int32 maxAnisotropy;
 		};
 
 		struct VulkanCaps

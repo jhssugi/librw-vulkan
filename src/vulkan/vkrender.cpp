@@ -44,34 +44,18 @@ namespace rw
 			maple::PipelineInfo info;
 			int32_t srcBlend = rw::GetRenderState(rw::SRCBLEND);
 			int32_t dstBlend = rw::GetRenderState(rw::DESTBLEND);
+
 			int32_t zTest = rw::GetRenderState(rw::ZTESTENABLE);
 			int32_t zWritable = rw::GetRenderState(rw::ZWRITEENABLE);
-			int32_t cullMode = rw::GetRenderState(rw::CULLMODE);
 
 			info.shader = getShader(currentShader->shaderId);
 			info.drawType = drawType;
 			info.depthTarget = vkGlobals.currentDepth;
 			info.colorTargets[0] = vkGlobals.colorTarget;
-			info.depthFunc = maple::StencilType::LessOrEqual;//zTest ? maple::StencilType::LessOrEqual : maple::StencilType::Always;
+			info.depthFunc = maple::StencilType::LessOrEqual;
 			info.swapChainTarget = info.colorTargets[0] == nullptr;
-			info.depthWriteEnable = true;//zWritable
-
-			if (cullMode == rw::CULLNONE)
-			{
-				info.cullMode = maple::CullMode::None;
-			}
-			else if (cullMode == rw::CULLBACK)
-			{
-				info.cullMode = maple::CullMode::Back;
-			}
-			else if (cullMode == 0)
-			{
-				info.cullMode = maple::CullMode::Back;
-			}
-			else
-			{
-				MAPLE_ASSERT(false, "TODO.");
-			}
+			info.depthWriteEnable = zWritable;
+			info.cullMode = (maple::CullMode)rw::GetRenderState(rw::CULLMODE);
 
 			if (srcBlend == rw::BLENDSRCALPHA && dstBlend == BLENDINVSRCALPHA)
 			{

@@ -4,35 +4,41 @@
 #include <string.h>
 
 #include "../rwbase.h"
+
 #include "../rwplg.h"
+
 #include "../rwengine.h"
+
 #include "../rwpipeline.h"
+
 #include "../rwobjects.h"
+
 #include "../rwerror.h"
+
 #include "../rwrender.h"
 
 #ifdef RW_VULKAN
 
-#	include "rwvk.h"
+#include "rwvk.h"
 
-#	include "rwvkimpl.h"
+#include "rwvkimpl.h"
 
-#	include "rwvkshader.h"
+#include "rwvkshader.h"
 
-#	define PLUGIN_ID 0
+#define PLUGIN_ID 0
 
-
-#include "GraphicsContext.h"
-#include "RenderDevice.h"
-#include "ImGuiRenderer.h"
-#include "ShaderCompiler.h"
-#include "UniformBuffer.h"
-#include "DescriptorSet.h"
-#include "Textures.h"
-#include "SwapChain.h"
 #include "CommandBuffer.h"
-#include "Shader.h"
+#include "DescriptorSet.h"
+#include "GraphicsContext.h"
+#include "ImGuiRenderer.h"
 #include "Pipeline.h"
+#include "RenderDevice.h"
+#include "Sampler.h"
+#include "Shader.h"
+#include "ShaderCompiler.h"
+#include "SwapChain.h"
+#include "Textures.h"
+#include "UniformBuffer.h"
 
 struct ImDrawData;
 
@@ -40,20 +46,30 @@ namespace rw
 {
 	namespace vulkan
 	{
+		static maple::TextureFilter filterConvMap_NoMIP[] = {
+		    maple::TextureFilter::None,   maple::TextureFilter::Nearest, maple::TextureFilter::Linear, maple::TextureFilter::Nearest,
+		    maple::TextureFilter::Linear, maple::TextureFilter::Nearest, maple::TextureFilter::Linear};
+
+		static maple::TextureFilter filterConvMap_MIP[] = {maple::TextureFilter::None,    maple::TextureFilter::Nearest, maple::TextureFilter::Linear,
+		                                                   maple::TextureFilter::Nearest, maple::TextureFilter::Linear,  maple::TextureFilter::Nearest,
+		                                                   maple::TextureFilter::Linear};
+
+		static maple::TextureWrap addressConvMap[] = {maple::TextureWrap::None, maple::TextureWrap::Repeat, maple::TextureWrap::MirroredRepeat,
+		                                              maple::TextureWrap::ClampToEdge, maple::TextureWrap::ClampToBorder};
+
 		static maple::ImGuiRenderer::Ptr imRender;
 
 		VkGlobals vkGlobals;
 		// terrible hack for GLES
 		bool32 needToReadBackTextures;
 
-		int32   alphaFunc;
+		int32 alphaFunc;
 		float32 alphaRef;
 
-		struct UniformState
-		{
+		struct UniformState {
 			float32 alphaRefLow;
 			float32 alphaRefHigh;
-			int32   pad[2];
+			int32 pad[2];
 
 			float32 fogStart;
 			float32 fogEnd;
@@ -64,87 +80,80 @@ namespace rw
 		};
 
 		/*	struct UniformScene
-			{
-				float32 proj[16];
-				float32 view[16];
-			};*/
+		        {
+		                float32 proj[16];
+		                float32 view[16];
+		        };*/
 
-#	define MAX_LIGHTS 8
+#define MAX_LIGHTS 8
 
-		//static RawMatrix world;
+		// static RawMatrix world;
 
-		struct PushConsts
-		{
+		struct PushConsts {
 			RawMatrix world;
 			float32 proj[16];
 			float32 view[16];
 		};
 
-		struct UniformObject
-		{
-			RGBAf     ambLight;
-			struct
-			{
+		struct UniformObject {
+			RGBAf ambLight;
+			struct {
 				float type;
 				float radius;
 				float minusCosAngle;
 				float hardSpot;
 			} lightParams[MAX_LIGHTS];
-			V4d   lightPosition[MAX_LIGHTS];
-			V4d   lightDirection[MAX_LIGHTS];
+			V4d lightPosition[MAX_LIGHTS];
+			V4d lightDirection[MAX_LIGHTS];
 			RGBAf lightColor[MAX_LIGHTS];
 		};
 
-
 		static maple::UniformBuffer::Ptr ubo_state, ubo_scene, ubo_object;
 
-		std::shared_ptr <maple::DescriptorSet> commonSet;
+		std::shared_ptr<maple::DescriptorSet> commonSet;
 
-
-		static GLuint        whitetex;
-		static UniformState  uniformState;
-		//static UniformScene  uniformScene;
+		static GLuint whitetex;
+		static UniformState uniformState;
+		// static UniformScene  uniformScene;
 		static UniformObject uniformObject;
-		static PushConsts	 pushConsts;
+		static PushConsts pushConsts;
 
-		Shader* defaultShader, * defaultShader_noAT;
-		Shader* defaultShader_fullLight, * defaultShader_fullLight_noAT;
+		Shader *defaultShader, *defaultShader_noAT;
+		Shader *defaultShader_fullLight, *defaultShader_fullLight_noAT;
 
 		static bool32 stateDirty = 1;
 		static bool32 sceneDirty = 1;
 		static bool32 objectDirty = 1;
 
-		struct RwRasterStateCache
-		{
-			Raster* raster;
+		struct RwRasterStateCache {
+			Raster *raster;
 			Texture::Addressing addressingU;
 			Texture::Addressing addressingV;
 			Texture::FilterMode filter;
 		};
 
-#	define MAXNUMSTAGES 8
+#define MAXNUMSTAGES 8
 
 		// cached RW render states
-		struct RwStateCache
-		{
-			bool32  vertexAlpha;
-			uint32  alphaTestEnable;
-			uint32  alphaFunc;
-			bool32  textureAlpha;
-			bool32  blendEnable;
-			uint32  srcblend, destblend;
-			uint32  zwrite;
-			uint32  ztest;
-			uint32  cullmode;
-			uint32  stencilenable;
-			uint32  stencilpass;
-			uint32  stencilfail;
-			uint32  stencilzfail;
-			uint32  stencilfunc;
-			uint32  stencilref;
-			uint32  stencilmask;
-			uint32  stencilwritemask;
-			uint32  fogEnable;
+		struct RwStateCache {
+			bool32 vertexAlpha;
+			uint32 alphaTestEnable;
+			uint32 alphaFunc;
+			bool32 textureAlpha;
+			bool32 blendEnable;
+			uint32 srcblend, destblend;
+			uint32 zwrite;
+			uint32 ztest;
+			uint32 cullmode;
+			uint32 stencilenable;
+			uint32 stencilpass;
+			uint32 stencilfail;
+			uint32 stencilzfail;
+			uint32 stencilfunc;
+			uint32 stencilref;
+			uint32 stencilmask;
+			uint32 stencilwritemask;
+			uint32 fogEnable;
 			float32 fogStart;
 			float32 fogEnd;
 
@@ -156,8 +165,7 @@ namespace rw
 		};
 		static RwStateCache rwStateCache;
 
-		enum
-		{
+		enum {
 			// actual gl states
 			RWGL_BLEND,
 			RWGL_SRCBLEND,
@@ -188,8 +196,7 @@ namespace rw
 		};
 		static bool uniformStateDirty[RWGL_NUM_STATES];
 
-		struct GlState
-		{
+		struct GlState {
 			bool32 blendEnable;
 			uint32 srcblend, destblend;
 
@@ -215,118 +222,93 @@ namespace rw
 		};
 		static GlState curGlState, oldGlState;
 
-		static int32  activeTexture;
+		static int32 activeTexture;
 		static uint32 boundTexture[MAXNUMSTAGES];
 
 		static uint32 currentFramebuffer;
 
-		static uint32 blendMap[] = {
-			0 };
+		static uint32 blendMap[] = {0};
 
-		static uint32 stencilOpMap[] = {
-			0 };
+		static uint32 stencilOpMap[] = {0};
 
-		static uint32 stencilFuncMap[] = { 0 };
+		static uint32 stencilFuncMap[] = {0};
 
 		static float maxAnisotropy;
 
 		/*
- * GL state cache
- */
+		 * GL state cache
+		 */
 
 		void setGlRenderState(uint32 state, uint32 value)
 		{
-			switch (state)
-			{
-			case RWGL_BLEND:
-				curGlState.blendEnable = value;
-				break;
-			case RWGL_SRCBLEND:
-				curGlState.srcblend = value;
-				break;
-			case RWGL_DESTBLEND:
-				curGlState.destblend = value;
-				break;
-			case RWGL_DEPTHTEST:
-				curGlState.depthTest = value;
-				break;
-			case RWGL_DEPTHFUNC:
-				curGlState.depthFunc = value;
-				break;
-			case RWGL_DEPTHMASK:
-				curGlState.depthMask = value;
-				break;
-			case RWGL_CULL:
-				curGlState.cullEnable = value;
-				break;
-			case RWGL_CULLFACE:
-				curGlState.cullFace = value;
-				break;
-			case RWGL_STENCIL:
-				curGlState.stencilEnable = value;
-				break;
-			case RWGL_STENCILFUNC:
-				curGlState.stencilFunc = value;
-				break;
-			case RWGL_STENCILFAIL:
-				curGlState.stencilFail = value;
-				break;
-			case RWGL_STENCILZFAIL:
-				curGlState.stencilZFail = value;
-				break;
-			case RWGL_STENCILPASS:
-				curGlState.stencilPass = value;
-				break;
-			case RWGL_STENCILREF:
-				curGlState.stencilRef = value;
-				break;
-			case RWGL_STENCILMASK:
-				curGlState.stencilMask = value;
-				break;
-			case RWGL_STENCILWRITEMASK:
-				curGlState.stencilWriteMask = value;
-				break;
+			switch(state) {
+			case RWGL_BLEND: curGlState.blendEnable = value; break;
+			case RWGL_SRCBLEND: curGlState.srcblend = value; break;
+			case RWGL_DESTBLEND: curGlState.destblend = value; break;
+			case RWGL_DEPTHTEST: curGlState.depthTest = value; break;
+			case RWGL_DEPTHFUNC: curGlState.depthFunc = value; break;
+			case RWGL_DEPTHMASK: curGlState.depthMask = value; break;
+			case RWGL_CULL: curGlState.cullEnable = value; break;
+			case RWGL_CULLFACE: curGlState.cullFace = value; break;
+			case RWGL_STENCIL: curGlState.stencilEnable = value; break;
+			case RWGL_STENCILFUNC: curGlState.stencilFunc = value; break;
+			case RWGL_STENCILFAIL: curGlState.stencilFail = value; break;
+			case RWGL_STENCILZFAIL: curGlState.stencilZFail = value; break;
+			case RWGL_STENCILPASS: curGlState.stencilPass = value; break;
+			case RWGL_STENCILREF: curGlState.stencilRef = value; break;
+			case RWGL_STENCILMASK: curGlState.stencilMask = value; break;
+			case RWGL_STENCILWRITEMASK: curGlState.stencilWriteMask = value; break;
 			}
 		}
 
 		void setAlphaBlend(bool32 enable)
 		{
-			if (rwStateCache.blendEnable != enable)
-			{
+			if(rwStateCache.blendEnable != enable) {
 				rwStateCache.blendEnable = enable;
 				setGlRenderState(RWGL_BLEND, enable);
 			}
 		}
 
-		bool32
-			getAlphaBlend(void)
-		{
-			return rwStateCache.blendEnable;
-		}
+		bool32 getAlphaBlend(void) { return rwStateCache.blendEnable; }
 
-		bool32 getAlphaTest(void)
-		{
-			return rwStateCache.alphaTestEnable;
-		}
+		bool32 getAlphaTest(void) { return rwStateCache.alphaTestEnable; }
 
 		static void setDepthTest(bool32 enable)
 		{
+			if(rwStateCache.ztest != enable) {
+				rwStateCache.ztest = enable;
+				if(rwStateCache.zwrite && !enable) {
+					// If we still want to write, enable but set mode to always
+					setGlRenderState(RWGL_DEPTHTEST, true);
+					setGlRenderState(RWGL_DEPTHFUNC, (uint32_t)maple::StencilType::Always);
+				} else {
+					setGlRenderState(RWGL_DEPTHTEST, rwStateCache.ztest);
+					setGlRenderState(RWGL_DEPTHFUNC, (uint32_t)maple::StencilType::LessOrEqual);
+				}
+			}
 		}
 
 		static void setDepthWrite(bool32 enable)
 		{
+			enable = enable ? 1 : 0;
+			if(rwStateCache.zwrite != enable) {
+				rwStateCache.zwrite = enable;
+				if(enable && !rwStateCache.ztest) {
+					// Have to switch on ztest so writing can work
+					setGlRenderState(RWGL_DEPTHTEST, true);
+					setGlRenderState(RWGL_DEPTHFUNC, (uint32_t)maple::StencilType::Always);
+				}
+				setGlRenderState(RWGL_DEPTHMASK, rwStateCache.zwrite);
+			}
 		}
 
-		static void
-			setAlphaTest(bool32 enable)
+		static void setAlphaTest(bool32 enable)
 		{
 			uint32 shaderfunc;
-			if (rwStateCache.alphaTestEnable != enable)
-			{
+			if(rwStateCache.alphaTestEnable != enable) {
 				rwStateCache.alphaTestEnable = enable;
 				shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
-				if (alphaFunc != shaderfunc)
-				{
+				if(alphaFunc != shaderfunc) {
 					alphaFunc = shaderfunc;
 					uniformStateDirty[RWGL_ALPHAFUNC] = true;
 					stateDirty = 1;
@@ -334,16 +316,13 @@ namespace rw
 			}
 		}
 
-		static void
-			setAlphaTestFunction(uint32 function)
+		static void setAlphaTestFunction(uint32 function)
 		{
 			uint32 shaderfunc;
-			if (rwStateCache.alphaFunc != function)
-			{
+			if(rwStateCache.alphaFunc != function) {
 				rwStateCache.alphaFunc = function;
 				shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
-				if (alphaFunc != shaderfunc)
-				{
+				if(alphaFunc != shaderfunc) {
 					alphaFunc = shaderfunc;
 					uniformStateDirty[RWGL_ALPHAFUNC] = true;
 					stateDirty = 1;
@@ -351,13 +330,10 @@ namespace rw
 			}
 		}
 
-		static void
-			setVertexAlpha(bool32 enable)
+		static void setVertexAlpha(bool32 enable)
 		{
-			if (rwStateCache.vertexAlpha != enable)
-			{
-				if (!rwStateCache.textureAlpha)
-				{
+			if(rwStateCache.vertexAlpha != enable) {
+				if(!rwStateCache.textureAlpha) {
 					setAlphaBlend(enable);
 					setAlphaTest(enable);
 				}
@@ -365,62 +341,94 @@ namespace rw
 			}
 		}
 
-		static void
-			setActiveTexture(int32 n)
+		static void setActiveTexture(int32 n)
 		{
-			if (activeTexture != n)
-			{
-				activeTexture = n;
-			}
+			if(activeTexture != n) { activeTexture = n; }
 		}
 
-		uint32
-			bindTexture(uint32 texid)
+		uint32 bindTexture(uint32 texid)
 		{
 			uint32 prev = boundTexture[activeTexture];
 			return prev;
 		}
 
-		void bindFramebuffer(uint32 fbo)
-		{
-		}
+		void bindFramebuffer(uint32 fbo) {}
 
 		static void setFilterMode(uint32 stage, int32 filter, int32 maxAniso = 1)
 		{
+			if(rwStateCache.texstage[stage].filter != (Texture::FilterMode)filter) {
+				rwStateCache.texstage[stage].filter = (Texture::FilterMode)filter;
+
+				Raster *raster = rwStateCache.texstage[stage].raster;
+				if(raster) {
+					VulkanRaster *natras = PLUGINOFFSET(VulkanRaster, rwStateCache.texstage[stage].raster, nativeRasterOffset);
+					if(natras->filterMode != filter) {
+						setActiveTexture(stage);
+
+						getTexture(natras->textureId)->setSampler(
+							maple::Sampler::create(filterConvMap_MIP[filter], 
+							addressConvMap[rwStateCache.texstage[stage].addressingU],
+						    addressConvMap[rwStateCache.texstage[stage].addressingV], 
+							natras->maxAnisotropy)
+						);
+
+						natras->filterMode = filter;
+					}
+					if(natras->maxAnisotropy != maxAniso) {
+						getTexture(natras->textureId)->setSampler(maple::Sampler::create(
+							filterConvMap_MIP[filter],
+							addressConvMap[rwStateCache.texstage[stage].addressingU],
+							addressConvMap[rwStateCache.texstage[stage].addressingV], 
+							maxAniso
+						));
+						natras->maxAnisotropy = maxAniso;
+					}
+				}
+			}
 		}
 
+		/**
+		 * stage textureId.
+		 */
 		static void setAddressU(uint32 stage, int32 addressing)
 		{
+			if(rwStateCache.texstage[stage].addressingU != (Texture::Addressing)addressing) {
+				rwStateCache.texstage[stage].addressingU = (Texture::Addressing)addressing;
+			}
 		}
 
 		static void setAddressV(uint32 stage, int32 addressing)
 		{
+			if(rwStateCache.texstage[stage].addressingV != (Texture::Addressing)addressing) {
+				rwStateCache.texstage[stage].addressingV = (Texture::Addressing)addressing;
+				Raster *raster = rwStateCache.texstage[stage].raster;
+			}
 		}
 
-		static void setRasterStageOnly(uint32 stage, Raster* raster)
-		{
-		}
-
-		static void setRasterStage(uint32 stage, Raster* raster)
+		static void setRasterStageOnly(uint32 stage, Raster *raster)
 		{
 			bool32 alpha;
-			if (raster != rwStateCache.texstage[stage].raster) {
+			if(raster != rwStateCache.texstage[stage].raster) {
 				rwStateCache.texstage[stage].raster = raster;
+				setActiveTexture(stage);
+				if(raster) {
+					assert(raster->platform == PLATFORM_VULKAN);
+					VulkanRaster *natras = PLUGINOFFSET(VulkanRaster, raster, nativeRasterOffset);
 
-				if (raster)
-				{
-					VulkanRaster* natras = PLUGINOFFSET(VulkanRaster, raster, nativeRasterOffset);
+					rwStateCache.texstage[stage].filter = (rw::Texture::FilterMode)natras->filterMode;
+					rwStateCache.texstage[stage].addressingU = (rw::Texture::Addressing)natras->addressU;
+					rwStateCache.texstage[stage].addressingV = (rw::Texture::Addressing)natras->addressV;
+
 					alpha = natras->hasAlpha;
-				}
-				else
-				{
+				} else {
+					bindTexture(whitetex);
 					alpha = 0;
 				}
 
-				if (stage == 0) {
-					if (alpha != rwStateCache.textureAlpha) {
+				if(stage == 0) {
+					if(alpha != rwStateCache.textureAlpha) {
 						rwStateCache.textureAlpha = alpha;
-						if (!rwStateCache.vertexAlpha) {
+						if(!rwStateCache.vertexAlpha) {
 							setAlphaBlend(alpha);
 							setAlphaTest(alpha);
 						}
@@ -429,76 +437,106 @@ namespace rw
 			}
 		}
 
-		void evictRaster(Raster* raster)
+		static void setRasterStage(uint32 stage, Raster *raster)
+		{
+			bool32 alpha;
+			if(raster != rwStateCache.texstage[stage].raster) {
+				rwStateCache.texstage[stage].raster = raster;
+
+				if(raster) {
+					VulkanRaster *natras = PLUGINOFFSET(VulkanRaster, raster, nativeRasterOffset);
+					alpha = natras->hasAlpha;
+
+					uint32 filter = rwStateCache.texstage[stage].filter;
+					uint32 addrU = rwStateCache.texstage[stage].addressingU;
+					uint32 addrV = rwStateCache.texstage[stage].addressingV;
+
+
+					if(natras->filterMode != filter)
+					{
+						natras->filterMode = filter;
+					}
+					if(natras->addressU != addrU) {
+
+						natras->addressU = addrU;
+					}
+					if(natras->addressV != addrV) {
+					
+						natras->addressV = addrV;
+					}
+
+					getTexture(natras->textureId)->setSampler(
+						maple::Sampler::create(filterConvMap_MIP[filter], 
+											    addressConvMap[rwStateCache.texstage[stage].addressingU],
+					                            addressConvMap[rwStateCache.texstage[stage].addressingV], 
+												natras->maxAnisotropy
+						));
+				} else {
+					alpha = 0;
+				}
+
+				if(stage == 0) {
+					if(alpha != rwStateCache.textureAlpha) {
+						rwStateCache.textureAlpha = alpha;
+						if(!rwStateCache.vertexAlpha) {
+							setAlphaBlend(alpha);
+							setAlphaTest(alpha);
+						}
+					}
+				}
+			}
+		}
+
+		void evictRaster(Raster *raster)
 		{
 			int i;
-			for (i = 0; i < MAXNUMSTAGES; i++)
-			{
-				//assert(rwStateCache.texstage[i].raster != raster);
-				if (rwStateCache.texstage[i].raster != raster)
-					continue;
+			for(i = 0; i < MAXNUMSTAGES; i++) {
+				// assert(rwStateCache.texstage[i].raster != raster);
+				if(rwStateCache.texstage[i].raster != raster) continue;
 				setRasterStage(i, nil);
 			}
 		}
 
-		void setTexture(std::shared_ptr<maple::DescriptorSet> sets, int32 stage, Texture* tex)
+		void setTexture(std::shared_ptr<maple::DescriptorSet> sets, int32 stage, Texture *tex)
 		{
 			auto texture = maple::Texture2D::getTexture1X1White();
-			VulkanRaster* natras = nullptr;
-			if (tex != nullptr)
-			{
-				natras = PLUGINOFFSET(VulkanRaster, tex->raster, nativeRasterOffset);
-			}
+			VulkanRaster *natras = nullptr;
+			if(tex != nullptr) { natras = PLUGINOFFSET(VulkanRaster, tex->raster, nativeRasterOffset); }
+
+			MAPLE_ASSERT(stage <= 1, "TODO");
+
 			sets->setTexture("tex" + std::to_string(stage), tex == nullptr ? texture : getTexture(natras->textureId));
 		}
 
-		static void setRenderState(int32 state, void* pvalue)
+		static void setRenderState(int32 state, void *pvalue)
 		{
 			uint32 value = (uint32)(uintptr)pvalue;
-			switch (state)
-			{
-			case TEXTURERASTER:
-				setRasterStage(0, (Raster*)pvalue);
-				break;
+			switch(state) {
+			case TEXTURERASTER: setRasterStage(0, (Raster *)pvalue); break;
 			case TEXTUREADDRESS:
 				setAddressU(0, value);
 				setAddressV(0, value);
 				break;
-			case TEXTUREADDRESSU:
-				setAddressU(0, value);
-				break;
-			case TEXTUREADDRESSV:
-				setAddressV(0, value);
-				break;
-			case TEXTUREFILTER:
-				setFilterMode(0, value);
-				break;
-			case VERTEXALPHA:
-				setVertexAlpha(value);
-				break;
+			case TEXTUREADDRESSU: setAddressU(0, value); break;
+			case TEXTUREADDRESSV: setAddressV(0, value); break;
+			case TEXTUREFILTER: setFilterMode(0, value); break;
+			case VERTEXALPHA: setVertexAlpha(value); break;
 			case SRCBLEND:
-				if (rwStateCache.srcblend != value)
-				{
+				if(rwStateCache.srcblend != value) {
 					rwStateCache.srcblend = value;
 					setGlRenderState(RWGL_SRCBLEND, blendMap[rwStateCache.srcblend]);
 				}
 				break;
 			case DESTBLEND:
-				if (rwStateCache.destblend != value)
-				{
+				if(rwStateCache.destblend != value) {
 					rwStateCache.destblend = value;
 					setGlRenderState(RWGL_DESTBLEND, blendMap[rwStateCache.destblend]);
 				}
 				break;
-			case ZTESTENABLE:
-				setDepthTest(value);
-				break;
-			case ZWRITEENABLE:
-				setDepthWrite(value);
-				break;
+			case ZTESTENABLE: setDepthTest(value); break;
+			case ZWRITEENABLE: setDepthWrite(value); break;
 			case FOGENABLE:
-				if (rwStateCache.fogEnable != value)
-				{
+				if(rwStateCache.fogEnable != value) {
 					rwStateCache.fogEnable = value;
 					uniformStateDirty[RWGL_FOG] = true;
 					stateDirty = 1;
@@ -516,186 +554,124 @@ namespace rw
 				stateDirty = 1;
 				break;
 			case CULLMODE:
-				if (rwStateCache.cullmode != value)
-				{
+				if(rwStateCache.cullmode != value) {
 					rwStateCache.cullmode = value;
-					if (rwStateCache.cullmode == CULLNONE)
+					if(rwStateCache.cullmode == CULLNONE)
 						setGlRenderState(RWGL_CULL, false);
-					else
-					{
+					else {
 						setGlRenderState(RWGL_CULL, true);
-						setGlRenderState(RWGL_CULLFACE, rwStateCache.cullmode == CULLBACK ? GL_BACK : GL_FRONT);
+						auto cullMode = rwStateCache.cullmode == CULLBACK ? maple::CullMode::Back : maple::CullMode::Front;
+						setGlRenderState(RWGL_CULLFACE, (uint32_t)cullMode);
 					}
 				}
 				break;
 
 			case STENCILENABLE:
-				if (rwStateCache.stencilenable != value)
-				{
+				if(rwStateCache.stencilenable != value) {
 					rwStateCache.stencilenable = value;
 					setGlRenderState(RWGL_STENCIL, value);
 				}
 				break;
 			case STENCILFAIL:
-				if (rwStateCache.stencilfail != value)
-				{
+				if(rwStateCache.stencilfail != value) {
 					rwStateCache.stencilfail = value;
 					setGlRenderState(RWGL_STENCILFAIL, stencilOpMap[value]);
 				}
 				break;
 			case STENCILZFAIL:
-				if (rwStateCache.stencilzfail != value)
-				{
+				if(rwStateCache.stencilzfail != value) {
 					rwStateCache.stencilzfail = value;
 					setGlRenderState(RWGL_STENCILZFAIL, stencilOpMap[value]);
 				}
 				break;
 			case STENCILPASS:
-				if (rwStateCache.stencilpass != value)
-				{
+				if(rwStateCache.stencilpass != value) {
 					rwStateCache.stencilpass = value;
 					setGlRenderState(RWGL_STENCILPASS, stencilOpMap[value]);
 				}
 				break;
 			case STENCILFUNCTION:
-				if (rwStateCache.stencilfunc != value)
-				{
+				if(rwStateCache.stencilfunc != value) {
 					rwStateCache.stencilfunc = value;
 					setGlRenderState(RWGL_STENCILFUNC, stencilFuncMap[value]);
 				}
 				break;
 			case STENCILFUNCTIONREF:
-				if (rwStateCache.stencilref != value)
-				{
+				if(rwStateCache.stencilref != value) {
 					rwStateCache.stencilref = value;
 					setGlRenderState(RWGL_STENCILREF, value);
 				}
 				break;
 			case STENCILFUNCTIONMASK:
-				if (rwStateCache.stencilmask != value)
-				{
+				if(rwStateCache.stencilmask != value) {
 					rwStateCache.stencilmask = value;
 					setGlRenderState(RWGL_STENCILMASK, value);
 				}
 				break;
 			case STENCILFUNCTIONWRITEMASK:
-				if (rwStateCache.stencilwritemask != value)
-				{
+				if(rwStateCache.stencilwritemask != value) {
 					rwStateCache.stencilwritemask = value;
 					setGlRenderState(RWGL_STENCILWRITEMASK, value);
 				}
 				break;
 
-			case ALPHATESTFUNC:
-				setAlphaTestFunction(value);
-				break;
+			case ALPHATESTFUNC: setAlphaTestFunction(value); break;
 			case ALPHATESTREF:
-				if (alphaRef != value / 255.0f)
-				{
+				if(alphaRef != value / 255.0f) {
 					alphaRef = value / 255.0f;
 					uniformStateDirty[RWGL_ALPHAREF] = true;
 					stateDirty = 1;
 				}
 				break;
-			case GSALPHATEST:
-				rwStateCache.gsalpha = value;
-				break;
-			case GSALPHATESTREF:
-				rwStateCache.gsalpharef = value;
+			case GSALPHATEST: rwStateCache.gsalpha = value; break;
+			case GSALPHATESTREF: rwStateCache.gsalpharef = value;
 			}
 		}
 
-		static void* getRenderState(int32 state)
+		static void *getRenderState(int32 state)
 		{
 			uint32 val;
-			RGBA   rgba;
-			switch (state)
-			{
-			case TEXTURERASTER:
-				return rwStateCache.texstage[0].raster;
+			RGBA rgba;
+			switch(state) {
+			case TEXTURERASTER: return rwStateCache.texstage[0].raster;
 			case TEXTUREADDRESS:
-				if (rwStateCache.texstage[0].addressingU == rwStateCache.texstage[0].addressingV)
+				if(rwStateCache.texstage[0].addressingU == rwStateCache.texstage[0].addressingV)
 					val = rwStateCache.texstage[0].addressingU;
 				else
-					val = 0;        // invalid
+					val = 0; // invalid
 				break;
-			case TEXTUREADDRESSU:
-				val = rwStateCache.texstage[0].addressingU;
-				break;
-			case TEXTUREADDRESSV:
-				val = rwStateCache.texstage[0].addressingV;
-				break;
-			case TEXTUREFILTER:
-				val = rwStateCache.texstage[0].filter;
-				break;
+			case TEXTUREADDRESSU: val = rwStateCache.texstage[0].addressingU; break;
+			case TEXTUREADDRESSV: val = rwStateCache.texstage[0].addressingV; break;
+			case TEXTUREFILTER: val = rwStateCache.texstage[0].filter; break;
 
-			case VERTEXALPHA:
-				val = rwStateCache.vertexAlpha;
-				break;
-			case SRCBLEND:
-				val = rwStateCache.srcblend;
-				break;
-			case DESTBLEND:
-				val = rwStateCache.destblend;
-				break;
-			case ZTESTENABLE:
-				val = rwStateCache.ztest;
-				break;
-			case ZWRITEENABLE:
-				val = rwStateCache.zwrite;
-				break;
-			case FOGENABLE:
-				val = rwStateCache.fogEnable;
-				break;
+			case VERTEXALPHA: val = rwStateCache.vertexAlpha; break;
+			case SRCBLEND: val = rwStateCache.srcblend; break;
+			case DESTBLEND: val = rwStateCache.destblend; break;
+			case ZTESTENABLE: val = rwStateCache.ztest; break;
+			case ZWRITEENABLE: val = rwStateCache.zwrite; break;
+			case FOGENABLE: val = rwStateCache.fogEnable; break;
 			case FOGCOLOR:
 				convColor(&rgba, &uniformState.fogColor);
 				val = RWRGBAINT(rgba.red, rgba.green, rgba.blue, rgba.alpha);
 				break;
-			case CULLMODE:
-				val = rwStateCache.cullmode;
-				break;
+			case CULLMODE: val = rwStateCache.cullmode; break;
 
-			case STENCILENABLE:
-				val = rwStateCache.stencilenable;
-				break;
-			case STENCILFAIL:
-				val = rwStateCache.stencilfail;
-				break;
-			case STENCILZFAIL:
-				val = rwStateCache.stencilzfail;
-				break;
-			case STENCILPASS:
-				val = rwStateCache.stencilpass;
-				break;
-			case STENCILFUNCTION:
-				val = rwStateCache.stencilfunc;
-				break;
-			case STENCILFUNCTIONREF:
-				val = rwStateCache.stencilref;
-				break;
-			case STENCILFUNCTIONMASK:
-				val = rwStateCache.stencilmask;
-				break;
-			case STENCILFUNCTIONWRITEMASK:
-				val = rwStateCache.stencilwritemask;
-				break;
+			case STENCILENABLE: val = rwStateCache.stencilenable; break;
+			case STENCILFAIL: val = rwStateCache.stencilfail; break;
+			case STENCILZFAIL: val = rwStateCache.stencilzfail; break;
+			case STENCILPASS: val = rwStateCache.stencilpass; break;
+			case STENCILFUNCTION: val = rwStateCache.stencilfunc; break;
+			case STENCILFUNCTIONREF: val = rwStateCache.stencilref; break;
+			case STENCILFUNCTIONMASK: val = rwStateCache.stencilmask; break;
+			case STENCILFUNCTIONWRITEMASK: val = rwStateCache.stencilwritemask; break;
 
-			case ALPHATESTFUNC:
-				val = rwStateCache.alphaFunc;
-				break;
-			case ALPHATESTREF:
-				val = (uint32)(alphaRef * 255.0f);
-				break;
-			case GSALPHATEST:
-				val = rwStateCache.gsalpha;
-				break;
-			case GSALPHATESTREF:
-				val = rwStateCache.gsalpharef;
-				break;
-			default:
-				val = 0;
+			case ALPHATESTFUNC: val = rwStateCache.alphaFunc; break;
+			case ALPHATESTREF: val = (uint32)(alphaRef * 255.0f); break;
+			case GSALPHATEST: val = rwStateCache.gsalpha; break;
+			case GSALPHATESTREF: val = rwStateCache.gsalpharef; break;
+			default: val = 0;
 			}
-			return (void*)(uintptr)val;
+			return (void *)(uintptr)val;
 		}
 
 		static void resetRenderState(void)
@@ -708,7 +684,7 @@ namespace rw
 			uniformState.fogStart = 0.0f;
 			uniformState.fogEnd = 0.0f;
 			uniformState.fogRange = 0.0f;
-			uniformState.fogColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+			uniformState.fogColor = {1.0f, 1.0f, 1.0f, 1.0f};
 			rwStateCache.gsalpha = 0;
 			rwStateCache.gsalpharef = 128;
 			stateDirty = 1;
@@ -726,27 +702,27 @@ namespace rw
 			setGlRenderState(RWGL_SRCBLEND, blendMap[rwStateCache.srcblend]);
 			setGlRenderState(RWGL_DESTBLEND, blendMap[rwStateCache.destblend]);
 
-			rwStateCache.zwrite = GL_TRUE;
+			rwStateCache.zwrite = 1;
 			setGlRenderState(RWGL_DEPTHMASK, rwStateCache.zwrite);
 
 			rwStateCache.ztest = 1;
 			setGlRenderState(RWGL_DEPTHTEST, true);
-			setGlRenderState(RWGL_DEPTHFUNC, GL_LEQUAL);
+			setGlRenderState(RWGL_DEPTHFUNC, (uint32_t)maple::StencilType::LessOrEqual);
 
 			rwStateCache.cullmode = CULLNONE;
 			setGlRenderState(RWGL_CULL, false);
-			setGlRenderState(RWGL_CULLFACE, GL_BACK);
+			setGlRenderState(RWGL_CULLFACE, (uint32_t)maple::CullMode::Back);
 
 			rwStateCache.stencilenable = 0;
-			setGlRenderState(RWGL_STENCIL, GL_FALSE);
+			setGlRenderState(RWGL_STENCIL, 0);
 			rwStateCache.stencilfail = STENCILKEEP;
-			setGlRenderState(RWGL_STENCILFAIL, GL_KEEP);
+			setGlRenderState(RWGL_STENCILFAIL, (uint32_t)maple::StencilType::Keep);
 			rwStateCache.stencilzfail = STENCILKEEP;
-			setGlRenderState(RWGL_STENCILZFAIL, GL_KEEP);
+			setGlRenderState(RWGL_STENCILZFAIL, (uint32_t)maple::StencilType::Keep);
 			rwStateCache.stencilpass = STENCILKEEP;
-			setGlRenderState(RWGL_STENCILPASS, GL_KEEP);
+			setGlRenderState(RWGL_STENCILPASS, (uint32_t)maple::StencilType::Keep);
 			rwStateCache.stencilfunc = STENCILALWAYS;
-			setGlRenderState(RWGL_STENCILFUNC, GL_ALWAYS);
+			setGlRenderState(RWGL_STENCILFUNC, (uint32_t)maple::StencilType::Always);
 			rwStateCache.stencilref = 0;
 			setGlRenderState(RWGL_STENCILREF, 0);
 			rwStateCache.stencilmask = 0xFFFFFFFF;
@@ -755,52 +731,46 @@ namespace rw
 			setGlRenderState(RWGL_STENCILWRITEMASK, 0xFFFFFFFF);
 
 			activeTexture = -1;
-			for (int i = 0; i < MAXNUMSTAGES; i++)
-			{
+			for(int i = 0; i < MAXNUMSTAGES; i++) {
 				setActiveTexture(i);
 				bindTexture(whitetex);
 			}
 			setActiveTexture(0);
 		}
 
-		void setWorldMatrix(Matrix* mat)
+		void setWorldMatrix(Matrix *mat)
 		{
 			convMatrix(&pushConsts.world, mat);
 			objectDirty = 1;
 		}
 
-		int32 setLights(WorldLights* lightData)
+		int32 setLights(WorldLights *lightData)
 		{
-			int    i, n;
-			Light* l;
-			int32  bits;
+			int i, n;
+			Light *l;
+			int32 bits;
 
 			uniformObject.ambLight = lightData->ambient;
 
 			bits = 0;
 
-			if (lightData->numAmbients)
-				bits |= VSLIGHT_AMBIENT;
+			if(lightData->numAmbients) bits |= VSLIGHT_AMBIENT;
 
 			n = 0;
-			for (i = 0; i < lightData->numDirectionals && i < 8; i++)
-			{
+			for(i = 0; i < lightData->numDirectionals && i < 8; i++) {
 				l = lightData->directionals[i];
 				uniformObject.lightParams[n].type = 1.0f;
 				uniformObject.lightColor[n] = l->color;
 				memcpy(&uniformObject.lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
 				bits |= VSLIGHT_DIRECT;
 				n++;
-				if (n >= MAX_LIGHTS)
-					goto out;
+				if(n >= MAX_LIGHTS) goto out;
 			}
 
-			for (i = 0; i < lightData->numLocals; i++)
-			{
-				Light* l = lightData->locals[i];
+			for(i = 0; i < lightData->numLocals; i++) {
+				Light *l = lightData->locals[i];
 
-				switch (l->getType())
-				{
+				switch(l->getType()) {
 				case Light::POINT:
 					uniformObject.lightParams[n].type = 2.0f;
 					uniformObject.lightParams[n].radius = l->radius;
@@ -808,8 +778,7 @@ namespace rw
 					memcpy(&uniformObject.lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
 					bits |= VSLIGHT_POINT;
 					n++;
-					if (n >= MAX_LIGHTS)
-						goto out;
+					if(n >= MAX_LIGHTS) goto out;
 					break;
 				case Light::SPOT:
 				case Light::SOFTSPOT:
@@ -820,14 +789,13 @@ namespace rw
 					memcpy(&uniformObject.lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
 					memcpy(&uniformObject.lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
 					// lower bound of falloff
-					if (l->getType() == Light::SOFTSPOT)
+					if(l->getType() == Light::SOFTSPOT)
 						uniformObject.lightParams[n].hardSpot = 0.0f;
 					else
 						uniformObject.lightParams[n].hardSpot = 1.0f;
 					bits |= VSLIGHT_SPOT;
 					n++;
-					if (n >= MAX_LIGHTS)
-						goto out;
+					if(n >= MAX_LIGHTS) goto out;
 					break;
 				}
 			}
@@ -839,26 +807,26 @@ namespace rw
 			return bits;
 		}
 
-		void setProjectionMatrix(float32* mat)
+		void setProjectionMatrix(float32 *mat)
 		{
 			memcpy(&pushConsts.proj, mat, 64);
 			sceneDirty = 1;
 		}
 
-		void setViewMatrix(float32* mat)
+		void setViewMatrix(float32 *mat)
 		{
 			memcpy(&pushConsts.view, mat, 64);
 			sceneDirty = 1;
 		}
 
-		Shader* lastShaderUploaded;
+		Shader *lastShaderUploaded;
 
-		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA& color, const SurfaceProperties& surfaceprops, float extraSurfProp)
+		void setMaterial(std::shared_ptr<maple::DescriptorSet> sets, const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp)
 		{
 			struct {
 				rw::RGBAf col;
 				float surfProps[4];
-			}uniform;
+			} uniform;
 			convColor(&uniform.col, &color);
 			uniform.surfProps[0] = surfaceprops.ambient;
 			uniform.surfProps[1] = surfaceprops.specular;
@@ -869,23 +837,17 @@ namespace rw
 
 		void flushCache(std::shared_ptr<maple::Shader> shader, std::shared_ptr<maple::DescriptorSet> dest)
 		{
-			if (objectDirty && dest)
-			{
+			if(objectDirty && dest) {
 				objectDirty = 0;
 				dest->setUniformBufferData("Object", &uniformObject);
 			}
 
-			if (shader != nullptr)
-			{
-				if (auto consts = shader->getPushConstant(0)) 
-				{
-					consts->setData(&pushConsts);
-				}
+			if(shader != nullptr) {
+				if(auto consts = shader->getPushConstant(0)) { consts->setData(&pushConsts); }
 			}
 
-			if (stateDirty)
-			{
-				switch (alphaFunc) {
+			if(stateDirty) {
+				switch(alphaFunc) {
 				case ALPHAALWAYS:
 				default:
 					uniformState.alphaRefLow = -1000.0f;
@@ -910,11 +872,11 @@ namespace rw
 			}
 		}
 
-		void flushFog(std::shared_ptr<maple::DescriptorSet> dest) 
+		void flushFog(std::shared_ptr<maple::DescriptorSet> dest)
 		{
-			//if (stateDirty)
+			// if (stateDirty)
 			{
-				switch (alphaFunc) {
+				switch(alphaFunc) {
 				case ALPHAALWAYS:
 				default:
 					uniformState.alphaRefLow = -1000.0f;
@@ -939,14 +901,14 @@ namespace rw
 			}
 		}
 
-		static void setFrameBuffer(Camera* cam)
+		static void setFrameBuffer(Camera *cam)
 		{
-			Raster* fbuf = cam->frameBuffer->parent;
-			Raster* zbuf = cam->zBuffer->parent;
+			Raster *fbuf = cam->frameBuffer->parent;
+			Raster *zbuf = cam->zBuffer->parent;
 			assert(fbuf);
 
-			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(fbuf);
-			VulkanRaster* natras = GET_VULKAN_RASTEREXT(zbuf);
+			VulkanRaster *natras2 = GET_VULKAN_RASTEREXT(fbuf);
+			VulkanRaster *natras = GET_VULKAN_RASTEREXT(zbuf);
 
 			assert(fbuf->type == Raster::CAMERA || fbuf->type == Raster::CAMERATEXTURE);
 
@@ -954,16 +916,13 @@ namespace rw
 			vkGlobals.colorTarget = getTexture(natras2->textureId);
 		}
 
-		static Rect getFramebufferRect(Raster* frameBuffer)
+		static Rect getFramebufferRect(Raster *frameBuffer)
 		{
-			Rect    r;
-			Raster* fb = frameBuffer->parent;
-			if (fb->type == Raster::CAMERA)
-			{
+			Rect r;
+			Raster *fb = frameBuffer->parent;
+			if(fb->type == Raster::CAMERA) {
 				glfwGetFramebufferSize(vkGlobals.window, &r.w, &r.h);
-			}
-			else
-			{
+			} else {
 				r.w = fb->width;
 				r.h = fb->height;
 			}
@@ -971,8 +930,7 @@ namespace rw
 			r.y = 0;
 
 			// Got a subraster
-			if (frameBuffer != fb)
-			{
+			if(frameBuffer != fb) {
 				r.x = frameBuffer->offsetX;
 				// GL y offset is from bottom
 				r.y = frameBuffer->offsetY;
@@ -983,27 +941,24 @@ namespace rw
 			return r;
 		}
 
-		static void setViewport(Raster* frameBuffer)
+		static void setViewport(Raster *frameBuffer)
 		{
 			Rect r = getFramebufferRect(frameBuffer);
-			if (r.w != vkGlobals.presentWidth || r.h != vkGlobals.presentHeight ||
-				r.x != vkGlobals.presentOffX || r.y != vkGlobals.presentOffY)
-			{
+			if(r.w != vkGlobals.presentWidth || r.h != vkGlobals.presentHeight || r.x != vkGlobals.presentOffX || r.y != vkGlobals.presentOffY) {
 				vkGlobals.presentWidth = r.w;
 				vkGlobals.presentHeight = r.h;
 				vkGlobals.presentOffX = r.x;
 				vkGlobals.presentOffY = r.y;
 			}
 		}
-		//using this one to indicate. because we only need vulkan begin once each frame.
-		//so when the first camera executes begin update or clear we can know that we need to render next frame.
-		//and reset it in showRaster
+		// using this one to indicate. because we only need vulkan begin once each frame.
+		// so when the first camera executes begin update or clear we can know that we need to render next frame.
+		// and reset it in showRaster
 		static bool executeOnceFlag = false;
 
-		static void beginUpdate(Camera* cam)
+		static void beginUpdate(Camera *cam)
 		{
-			if (!executeOnceFlag) 
-			{
+			if(!executeOnceFlag) {
 				maple::RenderDevice::get()->begin();
 				executeOnceFlag = true;
 			}
@@ -1038,7 +993,6 @@ namespace rw
 			float32 invwy = 1.0f / cam->viewWindow.y;
 			float32 invz = 1.0f / (cam->farPlane - cam->nearPlane);
 
-
 			/**
 			 * [][][][]
 			 * [][][][]
@@ -1060,18 +1014,15 @@ namespace rw
 			proj[9] = cam->viewOffset.y * invwy;
 			proj[12] = -proj[8];
 			proj[13] = -proj[9];
-			if (cam->projection == Camera::PERSPECTIVE)
-			{
-				//proj[10] = (cam->farPlane + cam->nearPlane) * invz;
+			if(cam->projection == Camera::PERSPECTIVE) {
+				// proj[10] = (cam->farPlane + cam->nearPlane) * invz;
 				proj[10] = cam->farPlane * invz;
 				proj[11] = 1.0f;
 
-				//proj[14] = -2.0f * cam->nearPlane * cam->farPlane * invz;
+				// proj[14] = -2.0f * cam->nearPlane * cam->farPlane * invz;
 				proj[14] = -cam->nearPlane * cam->farPlane * invz;
 				proj[15] = 0.0f;
-			}
-			else
-			{
+			} else {
 				proj[10] = 2.0f * invz;
 				proj[11] = 0.0f;
 
@@ -1081,14 +1032,12 @@ namespace rw
 			memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
 			setProjectionMatrix(proj);
 
-			if (rwStateCache.fogStart != cam->fogPlane)
-			{
+			if(rwStateCache.fogStart != cam->fogPlane) {
 				rwStateCache.fogStart = cam->fogPlane;
 				uniformStateDirty[RWGL_FOGSTART] = true;
 				stateDirty = 1;
 			}
-			if (rwStateCache.fogEnd != cam->farPlane)
-			{
+			if(rwStateCache.fogEnd != cam->farPlane) {
 				rwStateCache.fogEnd = cam->farPlane;
 				uniformStateDirty[RWGL_FOGEND] = true;
 				stateDirty = 1;
@@ -1096,116 +1045,88 @@ namespace rw
 
 			setFrameBuffer(cam);
 
- 			setViewport(cam->frameBuffer);
+			setViewport(cam->frameBuffer);
 		}
 
-		static void endUpdate(Camera* cam)
-		{
+		static void endUpdate(Camera *cam) {}
 
-		}
-
-		static void clearCamera(Camera* cam, RGBA* col, uint32 mode)
+		static void clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		{
-			if (!executeOnceFlag)
-			{
+			if(!executeOnceFlag) {
 				maple::RenderDevice::get()->begin();
 				executeOnceFlag = true;
 			}
 
-			VulkanRaster* natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
-			VulkanRaster* natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
+			VulkanRaster *natras = GET_VULKAN_RASTEREXT(cam->zBuffer);
+			VulkanRaster *natras2 = GET_VULKAN_RASTEREXT(cam->frameBuffer);
 
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
 
 			MAPLE_ASSERT(cmdBuffer != nullptr, "CMD Buffer should not be null");
 
-		
 			bool setScissor = cam->frameBuffer != cam->frameBuffer->parent;
-			if (setScissor) 
-			{
+			if(setScissor) {
 				auto pipeline = getPipeline(maple::DrawType::Triangle);
 
 				pipeline->bind(cmdBuffer);
 
 				Rect r = getFramebufferRect(cam->frameBuffer);
-				if (mode & Camera::CLEARIMAGE)
-				{
+				if(mode & Camera::CLEARIMAGE) {
 					auto target = getTexture(natras2->textureId);
 
-					if (target == nullptr)
-					{
-						target = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage();
-					}
+					if(target == nullptr) { target = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage(); }
 
-					if (target != nullptr)
-					{
-						cmdBuffer->clearAttachments(target, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f }, { r.x, r.y, r.w, r.h });
+					if(target != nullptr) {
+						cmdBuffer->clearAttachments(target,
+						                            {col->red / 255.f, col->green / 255.f, col->blue / 255.f, col->alpha / 255.f},
+						                            {r.x, r.y, r.w, r.h});
 					}
 				}
 
-				if (mode & Camera::CLEARZ)
-				{
-					if(getTexture(natras->textureId)!=nullptr)
-					cmdBuffer->clearAttachments(getTexture(natras->textureId), {1,1,1,1}, { r.x, r.y, r.w, r.h });
+				if(mode & Camera::CLEARZ) {
+					if(getTexture(natras->textureId) != nullptr)
+						cmdBuffer->clearAttachments(getTexture(natras->textureId), {1, 1, 1, 1}, {r.x, r.y, r.w, r.h});
 				}
 
 				pipeline->end(cmdBuffer);
-			}
-			else 
-			{
-				if (mode & Camera::CLEARIMAGE)
-				{
+			} else {
+				if(mode & Camera::CLEARIMAGE) {
 					auto target = getTexture(natras2->textureId);
 
-					if (target == nullptr)
-					{
-						target = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage();
-					}
+					if(target == nullptr) { target = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage(); }
 
-					if (target != nullptr)
-					{
-						maple::RenderDevice::get()->clearRenderTarget(target, cmdBuffer, { col->red / 255.f,col->green / 255.f,col->blue / 255.f,col->alpha / 255.f });
+					if(target != nullptr) {
+						maple::RenderDevice::get()->clearRenderTarget(
+						    target, cmdBuffer, {col->red / 255.f, col->green / 255.f, col->blue / 255.f, col->alpha / 255.f});
 					}
 				}
 
-				if (mode & Camera::CLEARZ)
-				{
-					maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), cmdBuffer, { 1,1,1,1 });
+				if(mode & Camera::CLEARZ) {
+					maple::RenderDevice::get()->clearRenderTarget(getTexture(natras->textureId), cmdBuffer, {1, 1, 1, 1});
 				}
 
-				if (mode & Camera::CLEARSTENCIL)
-				{
-
-				}
+				if(mode & Camera::CLEARSTENCIL) {}
 			}
 		}
 
-		static void showRaster(Raster* raster, uint32 flags)
+		static void showRaster(Raster *raster, uint32 flags)
 		{
 			maple::RenderDevice::get()->presentInternal();
 			executeOnceFlag = false;
 		}
 
-		static bool32 rasterRenderFast(Raster* raster, int32 x, int32 y)
-		{
-			return 0;
-		}
+		static bool32 rasterRenderFast(Raster *raster, int32 x, int32 y) { return 0; }
 
-		static void addVideoMode(const GLFWvidmode* mode)
+		static void addVideoMode(const GLFWvidmode *mode)
 		{
 			int i;
 
-			for (i = 1; i < vkGlobals.numModes; i++)
-			{
-				if (vkGlobals.modes[i].mode.width == mode->width &&
-					vkGlobals.modes[i].mode.height == mode->height &&
-					vkGlobals.modes[i].mode.redBits == mode->redBits &&
-					vkGlobals.modes[i].mode.greenBits == mode->greenBits &&
-					vkGlobals.modes[i].mode.blueBits == mode->blueBits)
-				{
+			for(i = 1; i < vkGlobals.numModes; i++) {
+				if(vkGlobals.modes[i].mode.width == mode->width && vkGlobals.modes[i].mode.height == mode->height &&
+				   vkGlobals.modes[i].mode.redBits == mode->redBits && vkGlobals.modes[i].mode.greenBits == mode->greenBits &&
+				   vkGlobals.modes[i].mode.blueBits == mode->blueBits) {
 					// had this mode already, remember highest refresh rate
-					if (mode->refreshRate > vkGlobals.modes[i].mode.refreshRate)
-						vkGlobals.modes[i].mode.refreshRate = mode->refreshRate;
+					if(mode->refreshRate > vkGlobals.modes[i].mode.refreshRate) vkGlobals.modes[i].mode.refreshRate = mode->refreshRate;
 					return;
 				}
 			}
@@ -1218,8 +1139,8 @@ namespace rw
 
 		static void makeVideoModeList(void)
 		{
-			int                i, num;
-			const GLFWvidmode* modes;
+			int i, num;
+			const GLFWvidmode *modes;
 
 			modes = glfwGetVideoModes(vkGlobals.monitor, &num);
 			rwFree(vkGlobals.modes);
@@ -1229,21 +1150,17 @@ namespace rw
 			vkGlobals.modes[0].flags = 0;
 			vkGlobals.numModes = 1;
 
-			for (i = 0; i < num; i++)
-				addVideoMode(&modes[i]);
+			for(i = 0; i < num; i++) addVideoMode(&modes[i]);
 
-			for (i = 0; i < vkGlobals.numModes; i++)
-			{
-				num = vkGlobals.modes[i].mode.redBits +
-					vkGlobals.modes[i].mode.greenBits +
-					vkGlobals.modes[i].mode.blueBits;
+			for(i = 0; i < vkGlobals.numModes; i++) {
+				num = vkGlobals.modes[i].mode.redBits + vkGlobals.modes[i].mode.greenBits + vkGlobals.modes[i].mode.blueBits;
 				// set depth to power of two
-				for (vkGlobals.modes[i].depth = 1; vkGlobals.modes[i].depth < num; vkGlobals.modes[i].depth <<= 1)
+				for(vkGlobals.modes[i].depth = 1; vkGlobals.modes[i].depth < num; vkGlobals.modes[i].depth <<= 1)
 					;
 			}
 		}
 
-		static int openGLFW(EngineOpenParams* openparams)
+		static int openGLFW(EngineOpenParams *openparams)
 		{
 			vkGlobals.winWidth = openparams->width;
 			vkGlobals.winHeight = openparams->height;
@@ -1251,8 +1168,7 @@ namespace rw
 			vkGlobals.pWindow = openparams->window;
 
 			/* Init GLFW */
-			if (!glfwInit())
-			{
+			if(!glfwInit()) {
 				RWERROR((ERR_GENERAL, "glfwInit() failed"));
 				return 0;
 			}
@@ -1270,15 +1186,12 @@ namespace rw
 			return 1;
 		}
 
-		static void glfwerr(int error, const char* desc)
-		{
-			fprintf(stderr, "GLFW Error: %s\n", desc);
-		}
+		static void glfwerr(int error, const char *desc) { fprintf(stderr, "GLFW Error: %s\n", desc); }
 
 		static int startGLFW(void)
 		{
-			GLFWwindow* win;
-			DisplayMode* mode;
+			GLFWwindow *win;
+			DisplayMode *mode;
 
 			maple::ShaderCompiler::init();
 
@@ -1296,20 +1209,16 @@ namespace rw
 
 			// GLX will round up to 2x or 4x if you ask for multisampling on with 1 sample
 			// So only apply the SAMPLES hint if we actually want multisampling
-			if (vkGlobals.numSamples > 1)
-				glfwWindowHint(GLFW_SAMPLES, vkGlobals.numSamples);
+			if(vkGlobals.numSamples > 1) glfwWindowHint(GLFW_SAMPLES, vkGlobals.numSamples);
 
-			if(mode->flags & VIDEOMODEEXCLUSIVE)
-			{
-				win = glfwCreateWindow(mode->mode.width, mode->mode.height, vkGlobals.winTitle.c_str(), nil, nil);// vkGlobals.monitor
+			if(mode->flags & VIDEOMODEEXCLUSIVE) {
+				win = glfwCreateWindow(mode->mode.width, mode->mode.height, vkGlobals.winTitle.c_str(), nil, nil); // vkGlobals.monitor
 				vkGlobals.winWidth = mode->mode.width;
-				vkGlobals.winHeight= mode->mode.height;
-			}
-			else
+				vkGlobals.winHeight = mode->mode.height;
+			} else
 				win = glfwCreateWindow(vkGlobals.winWidth, vkGlobals.winHeight, vkGlobals.winTitle.c_str(), nil, nil);
 
-			if (win == nil)
-			{
+			if(win == nil) {
 				RWERROR((ERR_GENERAL, "glfwCreateWindow() failed"));
 				return 0;
 			}
@@ -1344,19 +1253,24 @@ namespace rw
 
 #include "vkshaders/default.shader.h"
 
-			const std::string defaultTxt{ (char*)__default_shader,__default_shader_len };
+			const std::string defaultTxt{(char *)__default_shader, __default_shader_len};
 
 			defaultShader = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
-			defaultShader_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
+			defaultShader_noAT =
+			    Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
 
-			defaultShader_fullLight = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n");
-			defaultShader_fullLight_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n#define NO_ALPHATEST\n");
+			defaultShader_fullLight =
+			    Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt,
+			                   "#define FRAGMENT_SHADER\n");
+			defaultShader_fullLight_noAT =
+			    Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt,
+			                   "#define FRAGMENT_SHADER\n#define NO_ALPHATEST\n");
 
 			ubo_state = maple::UniformBuffer::create(sizeof(UniformState), &uniformState);
-			//ubo_scene = maple::UniformBuffer::create(sizeof(UniformScene), &uniformScene);
+			// ubo_scene = maple::UniformBuffer::create(sizeof(UniformScene), &uniformScene);
 			ubo_object = maple::UniformBuffer::create(sizeof(UniformObject), &uniformObject);
 
-			commonSet = maple::DescriptorSet::create({ 0, getShader(defaultShader->shaderId).get() });
+			commonSet = maple::DescriptorSet::create({0, getShader(defaultShader->shaderId).get()});
 
 			openIm2D(vkGlobals.winWidth, vkGlobals.winHeight);
 			openIm3D();
@@ -1382,104 +1296,83 @@ namespace rw
 			return 1;
 		}
 
-		static int finalizeVulkan(void)
+		static int finalizeVulkan(void) { return 1; }
+
+		static int deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
 		{
-			return 1;
-		}
+			GLFWmonitor **monitors;
+			VideoMode *rwmode;
 
-		static int deviceSystemGLFW(DeviceReq req, void* arg, int32 n)
-		{
-			GLFWmonitor** monitors;
-			VideoMode* rwmode;
+			switch(req) {
+			case DEVICEOPEN: return openGLFW((EngineOpenParams *)arg);
+			case DEVICECLOSE: return closeGLFW();
 
-			switch (req) {
-			case DEVICEOPEN:
-				return openGLFW((EngineOpenParams*)arg);
-			case DEVICECLOSE:
-				return closeGLFW();
+			case DEVICEINIT: return startGLFW() && initVulkan();
+			case DEVICETERM: return termVulkan() && stopGLFW();
 
-			case DEVICEINIT:
-				return startGLFW() && initVulkan();
-			case DEVICETERM:
-				return termVulkan() && stopGLFW();
-
-			case DEVICEFINALIZE:
-				return finalizeVulkan();
-			case DEVICEGETNUMSUBSYSTEMS:
-				return vkGlobals.numMonitors;
-			case DEVICEGETCURRENTSUBSYSTEM:
-				return vkGlobals.currentMonitor;
+			case DEVICEFINALIZE: return finalizeVulkan();
+			case DEVICEGETNUMSUBSYSTEMS: return vkGlobals.numMonitors;
+			case DEVICEGETCURRENTSUBSYSTEM: return vkGlobals.currentMonitor;
 			case DEVICESETSUBSYSTEM:
 				monitors = glfwGetMonitors(&vkGlobals.numMonitors);
-				if (n >= vkGlobals.numMonitors)
-					return 0;
+				if(n >= vkGlobals.numMonitors) return 0;
 				vkGlobals.currentMonitor = n;
 				vkGlobals.monitor = monitors[vkGlobals.currentMonitor];
 				return 1;
 
 			case DEVICEGETSUBSSYSTEMINFO:
 				monitors = glfwGetMonitors(&vkGlobals.numMonitors);
-				if (n >= vkGlobals.numMonitors)
-					return 0;
-				strncpy(((SubSystemInfo*)arg)->name, glfwGetMonitorName(monitors[n]), sizeof(SubSystemInfo::name));
+				if(n >= vkGlobals.numMonitors) return 0;
+				strncpy(((SubSystemInfo *)arg)->name, glfwGetMonitorName(monitors[n]), sizeof(SubSystemInfo::name));
 				return 1;
-			case DEVICEGETNUMVIDEOMODES:
-				return vkGlobals.numModes;
-			case DEVICEGETCURRENTVIDEOMODE:
-				return vkGlobals.currentMode;
+			case DEVICEGETNUMVIDEOMODES: return vkGlobals.numModes;
+			case DEVICEGETCURRENTVIDEOMODE: return vkGlobals.currentMode;
 
 			case DEVICESETVIDEOMODE:
-				if (n >= vkGlobals.numModes)
-					return 0;
+				if(n >= vkGlobals.numModes) return 0;
 				vkGlobals.currentMode = n;
 				return 1;
 			case DEVICEGETVIDEOMODEINFO:
-				rwmode = (VideoMode*)arg;
+				rwmode = (VideoMode *)arg;
 				rwmode->width = vkGlobals.modes[n].mode.width;
 				rwmode->height = vkGlobals.modes[n].mode.height;
 				rwmode->depth = vkGlobals.modes[n].depth;
 				rwmode->flags = vkGlobals.modes[n].flags;
 				return 1;
-			case DEVICEGETMAXMULTISAMPLINGLEVELS:
-			{
+			case DEVICEGETMAXMULTISAMPLINGLEVELS: {
 				return maple::GraphicsContext::get()->getCaps().maxSamples;
 			}
 			case DEVICEGETMULTISAMPLINGLEVELS:
-				if (vkGlobals.numSamples == 0)
-					return 1;
+				if(vkGlobals.numSamples == 0) return 1;
 				return vkGlobals.numSamples;
-			case DEVICESETMULTISAMPLINGLEVELS:
-				vkGlobals.numSamples = (uint32)n;
-				return 1;
-			default:
-				assert(0 && "not implemented");
-				return 0;
+			case DEVICESETMULTISAMPLINGLEVELS: vkGlobals.numSamples = (uint32)n; return 1;
+			default: assert(0 && "not implemented"); return 0;
 			}
 			return 1;
 		}
 
-		Device renderdevice = {
-			-1.0f, 1.0f,
-			vulkan::beginUpdate,
-			vulkan::endUpdate,
-			vulkan::clearCamera,
-			vulkan::showRaster,
-			vulkan::rasterRenderFast,
-			vulkan::setRenderState,
-			vulkan::getRenderState,
-			vulkan::im2DRenderLine,
-			vulkan::im2DRenderTriangle,
-			vulkan::im2DRenderPrimitive,
-			vulkan::im2DRenderIndexedPrimitive,
-			vulkan::im3DTransform,
-			vulkan::im3DRenderPrimitive,
-			vulkan::im3DRenderIndexedPrimitive,
-			vulkan::im3DEnd,
-			vulkan::deviceSystemGLFW };
-	}        // namespace vulkan
-}        // namespace rw
+		Device renderdevice = {-1.0f,
+		                       1.0f,
+		                       vulkan::beginUpdate,
+		                       vulkan::endUpdate,
+		                       vulkan::clearCamera,
+		                       vulkan::showRaster,
+		                       vulkan::rasterRenderFast,
+		                       vulkan::setRenderState,
+		                       vulkan::getRenderState,
+		                       vulkan::im2DRenderLine,
+		                       vulkan::im2DRenderTriangle,
+		                       vulkan::im2DRenderPrimitive,
+		                       vulkan::im2DRenderIndexedPrimitive,
+		                       vulkan::im3DTransform,
+		                       vulkan::im3DRenderPrimitive,
+		                       vulkan::im3DRenderIndexedPrimitive,
+		                       vulkan::im3DEnd,
+		                       vulkan::deviceSystemGLFW};
+	} // namespace vulkan
+} // namespace rw
 
-void ImGui_ImplRW_RenderDrawLists(ImDrawData*)
+void ImGui_ImplRW_RenderDrawLists(ImDrawData *)
 {
 	rw::vulkan::imFlush();
 	rw::vulkan::imRender->render(nullptr);
