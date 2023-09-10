@@ -37,7 +37,10 @@ namespace rw
 
 		static maple::Pipeline::Ptr currentPipeline = nullptr;
 
-		static std::unordered_map<Atomic*, maple::DescriptorSet::Ptr> objectSets;
+		static std::unordered_map<InstanceData *, maple::DescriptorSet::Ptr> objectSets;
+
+		
+		static maple::CullMode cullModes[] = {maple::CullMode::Back, maple::CullMode::Back, maple::CullMode::Back, maple::CullMode::Front};
 
 		maple::Pipeline::Ptr getPipeline(maple::DrawType drawType)
 		{
@@ -52,10 +55,13 @@ namespace rw
 			info.drawType = drawType;
 			info.depthTarget = vkGlobals.currentDepth;
 			info.colorTargets[0] = vkGlobals.colorTarget;
-			info.depthFunc = maple::StencilType::LessOrEqual;
+			info.depthFunc = zWritable && !zTest ? maple::StencilType::Always : maple::StencilType::LessOrEqual;
 			info.swapChainTarget = info.colorTargets[0] == nullptr;
-			info.depthWriteEnable = zWritable;
-			info.cullMode = (maple::CullMode)rw::GetRenderState(rw::CULLMODE);
+			//info.depthWriteEnable = zWritable;
+			info.depthTest = zTest;
+			info.cullMode = cullModes[rw::GetRenderState(rw::CULLMODE)];
+			
+			info.transparencyEnabled = false;
 
 			if (srcBlend == rw::BLENDSRCALPHA && dstBlend == BLENDINVSRCALPHA)
 			{
@@ -77,10 +83,7 @@ namespace rw
 			auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
 			header->vertexBufferGPU->bind(cmdBuffer, pipeline.get());
 			header->indexBufferGPU->bind(cmdBuffer);
-
-			commonSet->update(cmdBuffer);
-			set->update(cmdBuffer);
-			objSet->update(cmdBuffer);
+/*
 
 			if (pipeline != currentPipeline)
 			{
@@ -89,12 +92,17 @@ namespace rw
 					currentPipeline->end(cmdBuffer);
 				}
 				currentPipeline = pipeline;
-				pipeline->bind(cmdBuffer, maple::ivec4{vkGlobals.presentOffX,vkGlobals.presentOffY,vkGlobals.presentWidth,vkGlobals.presentHeight });
-				pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
 			}
+			*/
+			commonSet->update(cmdBuffer);
+			set->update(cmdBuffer);
+			objSet->update(cmdBuffer);
 
-			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { commonSet ,set,objSet });
+			pipeline->bind(cmdBuffer, maple::ivec4{vkGlobals.presentOffX, vkGlobals.presentOffY, vkGlobals.presentWidth, vkGlobals.presentHeight});
+			pipeline->getShader()->bindPushConstants(cmdBuffer, pipeline.get());
+			maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, {commonSet, set, objSet});
 			pipeline->drawIndexed(cmdBuffer, inst->numIndex, 1, inst->offset, 0, 0);
+			pipeline->end(cmdBuffer);
 		}
 
 		// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
@@ -134,12 +142,16 @@ namespace rw
 				drawInst_simple(objSet, header, inst);
 		}
 
-		void drawInst(maple::DescriptorSet::Ptr objSet, InstanceDataHeader* header, InstanceData* inst)
+		void drawInst(InstanceDataHeader *header, InstanceData *inst)
 		{
+			if(auto iter = objectSets.find(inst); iter == objectSets.end()) {
+				objectSets[inst] = maple::DescriptorSet::create({2, getShader(defaultShader->shaderId).get()});
+			}
+
 			if (rw::GetRenderState(rw::GSALPHATEST))
-				drawInst_GSemu(objSet, header, inst);
+				drawInst_GSemu(objectSets[inst], header, inst);
 			else
-				drawInst_simple(objSet, header, inst);
+				drawInst_simple(objectSets[inst], header, inst);
 		}
 
 
@@ -176,11 +188,6 @@ namespace rw
 
 		void defaultRenderCB(Atomic* atomic, InstanceDataHeader* header)
 		{
-			if (auto iter = objectSets.find(atomic); iter == objectSets.end())
-			{
-				objectSets[atomic] = maple::DescriptorSet::create({ 2, getShader(defaultShader->shaderId).get() });
-			}
-
 			Material* m;
 
 			uint32 flags = atomic->geometry->flags;
@@ -212,7 +219,7 @@ namespace rw
 						defaultShader_fullLight_noAT->use();
 				}
 
-				drawInst(objectSets[atomic], header, inst);
+				drawInst(header, inst);
 				inst++;
 			}
 

@@ -304,6 +304,8 @@ namespace rw
 
 			if (defaultShader_fullLight == currentShader)
 			{
+
+				MAPLE_ASSERT(false, "TODO...")
 				//maple::RenderDevice::get()->bindDescriptorSets(pipeline.get(), cmdBuffer, { commonSet, materialSet, objectSet });
 			}
 			else

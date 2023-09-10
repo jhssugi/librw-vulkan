@@ -343,7 +343,7 @@ namespace rw
 		// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
 		void drawInst_GSemu(InstanceDataHeader* header, InstanceData* inst);
 		// This one switches between the above two depending on render state;
-		void drawInst(InstanceDataHeader* header, InstanceData* inst);
+		void drawInst(InstanceDataHeader *header, InstanceData *inst);
 
 		void* destroyNativeData(void* object, int32, int32);
 

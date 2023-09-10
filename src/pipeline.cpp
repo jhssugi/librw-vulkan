@@ -81,23 +81,41 @@ instV4d(int type, uint8 *dst, V4d *src, uint32 numVertices, uint32 stride)
 void
 instV3d(int type, uint8 *dst, V3d *src, uint32 numVertices, uint32 stride)
 {
-	if(type == VERT_FLOAT3)
-		for(uint32 i = 0; i < numVertices; i++){
-			memcpy(dst, src, 12);
-			dst += stride;
-			src++;
+	if(src == nullptr)
+	{
+		if(type == VERT_FLOAT3) 
+		{
+			V3d defaultValue = {0,0,0};
+			for(uint32 i = 0; i < numVertices; i++) {
+				memcpy(dst, &defaultValue, 12);
+				dst += stride;
+				src++;
+			}
 		}
-	else if(type == VERT_COMPNORM)
-		for(uint32 i = 0; i < numVertices; i++){
-			uint32 n = ((((uint32)(src->z *  511.0f)) & 0x3ff) << 22) |
-				   ((((uint32)(src->y * 1023.0f)) & 0x7ff) << 11) |
-				   ((((uint32)(src->x * 1023.0f)) & 0x7ff) <<  0);
-			*(uint32*)dst = n;
-			dst += stride;
-			src++;
+		else if(type == VERT_COMPNORM)
+		{
+			assert(0 && "unsupported VERT_COMPNORM type");
 		}
-	else
-		assert(0 && "unsupported instV3d type");
+	} 
+	else 
+	{
+		if(type == VERT_FLOAT3)
+			for(uint32 i = 0; i < numVertices; i++) {
+				memcpy(dst, src, 12);
+				dst += stride;
+				src++;
+			}
+		else if(type == VERT_COMPNORM)
+			for(uint32 i = 0; i < numVertices; i++) {
+				uint32 n = ((((uint32)(src->z * 511.0f)) & 0x3ff) << 22) | ((((uint32)(src->y * 1023.0f)) & 0x7ff) << 11) |
+					   ((((uint32)(src->x * 1023.0f)) & 0x7ff) << 0);
+				*(uint32 *)dst = n;
+				dst += stride;
+				src++;
+			}
+		else
+			assert(0 && "unsupported instV3d type");
+	}
 }
 
 void

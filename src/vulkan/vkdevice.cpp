@@ -47,14 +47,14 @@ namespace rw
 	namespace vulkan
 	{
 		static maple::TextureFilter filterConvMap_NoMIP[] = {
-		    maple::TextureFilter::None,   maple::TextureFilter::Nearest, maple::TextureFilter::Linear, maple::TextureFilter::Nearest,
+		    maple::TextureFilter::Linear, maple::TextureFilter::Nearest, maple::TextureFilter::Linear, maple::TextureFilter::Nearest,
 		    maple::TextureFilter::Linear, maple::TextureFilter::Nearest, maple::TextureFilter::Linear};
 
-		static maple::TextureFilter filterConvMap_MIP[] = {maple::TextureFilter::None,    maple::TextureFilter::Nearest, maple::TextureFilter::Linear,
+		static maple::TextureFilter filterConvMap_MIP[] = {maple::TextureFilter::Linear,  maple::TextureFilter::Nearest, maple::TextureFilter::Linear,
 		                                                   maple::TextureFilter::Nearest, maple::TextureFilter::Linear,  maple::TextureFilter::Nearest,
 		                                                   maple::TextureFilter::Linear};
 
-		static maple::TextureWrap addressConvMap[] = {maple::TextureWrap::None, maple::TextureWrap::Repeat, maple::TextureWrap::MirroredRepeat,
+		static maple::TextureWrap addressConvMap[] = {maple::TextureWrap::ClampToEdge, maple::TextureWrap::Repeat, maple::TextureWrap::MirroredRepeat,
 		                                              maple::TextureWrap::ClampToEdge, maple::TextureWrap::ClampToBorder};
 
 		static maple::ImGuiRenderer::Ptr imRender;
@@ -465,12 +465,10 @@ namespace rw
 						natras->addressV = addrV;
 					}
 
-					getTexture(natras->textureId)->setSampler(
-						maple::Sampler::create(filterConvMap_MIP[filter], 
-											    addressConvMap[rwStateCache.texstage[stage].addressingU],
-					                            addressConvMap[rwStateCache.texstage[stage].addressingV], 
-												natras->maxAnisotropy, natras->numLevels
-						));
+					getTexture(natras->textureId)
+					    ->setSampler(maple::Sampler::create(
+					        filterConvMap_MIP[filter], addressConvMap[rwStateCache.texstage[stage].addressingU],
+					        addressConvMap[rwStateCache.texstage[stage].addressingV], natras->maxAnisotropy, natras->numLevels));
 				} else {
 					alpha = 0;
 				}
@@ -1256,6 +1254,7 @@ namespace rw
 			const std::string defaultTxt{(char *)__default_shader, __default_shader_len};
 
 			defaultShader = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+
 			defaultShader_noAT =
 			    Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
 

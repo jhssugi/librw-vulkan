@@ -28,6 +28,7 @@
 
 #include "rwvkimpl.h"
 
+
 namespace rw
 {
 	namespace vulkan
@@ -39,7 +40,7 @@ namespace rw
 		static int32   u_boneMatrices;
 
 		void skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
-		{
+		{ 
 		}
 
 		void

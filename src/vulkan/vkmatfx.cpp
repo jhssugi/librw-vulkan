@@ -245,7 +245,7 @@ namespace rw
 			u_fxparams = registerUniform("u_fxparams", UNIFORM_VEC4);
 			u_colorClamp = registerUniform("u_colorClamp", UNIFORM_VEC4);
 			u_envColor = registerUniform("u_envColor", UNIFORM_VEC4);*/
-			Driver::registerPlugin(PLATFORM_VULKAN, 0, ID_MATFX, matfxOpen, matfxClose);
+			//Driver::registerPlugin(PLATFORM_VULKAN, 0, ID_MATFX, matfxOpen, matfxClose);
 		}
 #else
 		void initMatFX(void) {}

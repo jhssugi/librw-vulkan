@@ -254,7 +254,7 @@ namespace rw
 
 				// Normals
 				// TODO: compress
-				if (hasNormals)
+				//if (hasNormals)
 				{
 					a->index = ATTRIB_NORMAL;
 					a->size = 3;
@@ -303,11 +303,17 @@ namespace rw
 
 			attribs = header->attribDesc;
 
-			//
-			// Fill vertex buffer
-			//
+			assert(attribs->stride == 48);
 
 			uint8* verts = header->vertexBuffer;
+
+			struct Vertex 
+			{
+				V3d pos;
+				V3d normal;
+				V4d color;
+				V2d tex0;
+			};
 
 			// Positions
 			if (!reinstance || geo->lockedSinceInst & Geometry::LOCKVERTICES)
@@ -320,13 +326,36 @@ namespace rw
 			}
 
 			// Normals
-			if (hasNormals && (!reinstance || geo->lockedSinceInst & Geometry::LOCKNORMALS))
+			if ((!reinstance || geo->lockedSinceInst & Geometry::LOCKNORMALS))
 			{
 				for (a = attribs; a->index != ATTRIB_NORMAL; a++)
 					;
-				instV3d(VERT_FLOAT3, verts + a->offset,
-					geo->morphTargets[0].normals,
-					header->totalNumVertex, a->stride);
+				instV3d(VERT_FLOAT3, verts + a->offset, geo->morphTargets[0].normals, header->totalNumVertex, a->stride);
+				if(!hasNormals) 
+				{
+					if(header->totalNumIndex > 0) {
+						auto vertexBuff = reinterpret_cast<Vertex *>(verts);
+						for(uint32_t i = 0; i < header->totalNumIndex; i += 3) {
+							const auto a = header->indexBuffer[i];
+							const auto b = header->indexBuffer[i + 1];
+							const auto c = header->indexBuffer[i + 2];
+							const auto normal = rw::cross(rw::sub(vertexBuff[b].pos, vertexBuff[a].pos),
+							                              rw::sub(vertexBuff[c].pos, vertexBuff[a].pos));
+							vertexBuff[a].normal = rw::add(vertexBuff[a].normal, normal);
+							vertexBuff[b].normal = rw::add(vertexBuff[b].normal, normal);
+							vertexBuff[c].normal = rw::add(vertexBuff[c].normal, normal);
+						}
+
+						for(uint32_t i = 0; i < header->totalNumVertex; ++i) 
+						{ 
+							vertexBuff[i].normal = normalize(vertexBuff[i].normal);
+						}
+					} 
+					else 
+					{
+						assert(0 && "Todo.........");
+					}
+				}
 			}
 
 			// Prelighting
