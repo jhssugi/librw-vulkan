@@ -1725,7 +1725,7 @@ startGLFW(void)
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, profiles[i].minor);
 
 		if(mode->flags & VIDEOMODEEXCLUSIVE)
-			win = glfwCreateWindow(mode->mode.width, mode->mode.height, glGlobals.winTitle, glGlobals.monitor, nil);
+			win = glfwCreateWindow(mode->mode.width, mode->mode.height, glGlobals.winTitle,  nullptr, nil);
 		else
 			win = glfwCreateWindow(glGlobals.winWidth, glGlobals.winHeight, glGlobals.winTitle, nil, nil);
 		if(win){

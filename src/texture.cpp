@@ -470,22 +470,27 @@ Texture::streamReadNative(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
+	Texture *ret = nullptr;
+
 	uint32 platform = stream->readU32();
 	stream->seek(-16);
 	if(platform == FOURCC_PS2)
-		return ps2::readNativeTexture(stream);
+		ret = ps2::readNativeTexture(stream);
 	if(platform == PLATFORM_D3D8)
-		return d3d8::readNativeTexture(stream);
+		ret = d3d8::readNativeTexture(stream);
 	if(platform == PLATFORM_D3D9)
-		return d3d9::readNativeTexture(stream);
+		ret = d3d9::readNativeTexture(stream);
 	if(platform == PLATFORM_XBOX)
-		return xbox::readNativeTexture(stream);
+		ret = xbox::readNativeTexture(stream);
 	if(platform == PLATFORM_GL3)
-		return gl3::readNativeTexture(stream);
+		ret = gl3::readNativeTexture(stream);
 	if(platform == PLATFORM_VULKAN)
-		return vulkan::readNativeTexture(stream);
-	assert(0 && "unsupported platform");
-	return nil;
+		ret = vulkan::readNativeTexture(stream);
+
+	assert(ret != nullptr);
+
+	//assert(0 && "unsupported platform");
+	return ret;
 }
 
 void

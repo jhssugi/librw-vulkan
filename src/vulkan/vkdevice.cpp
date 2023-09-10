@@ -369,7 +369,7 @@ namespace rw
 							maple::Sampler::create(filterConvMap_MIP[filter], 
 							addressConvMap[rwStateCache.texstage[stage].addressingU],
 						    addressConvMap[rwStateCache.texstage[stage].addressingV], 
-							natras->maxAnisotropy)
+							natras->maxAnisotropy, natras->numLevels)
 						);
 
 						natras->filterMode = filter;
@@ -379,7 +379,7 @@ namespace rw
 							filterConvMap_MIP[filter],
 							addressConvMap[rwStateCache.texstage[stage].addressingU],
 							addressConvMap[rwStateCache.texstage[stage].addressingV], 
-							maxAniso
+							maxAniso, natras->numLevels
 						));
 						natras->maxAnisotropy = maxAniso;
 					}
@@ -469,7 +469,7 @@ namespace rw
 						maple::Sampler::create(filterConvMap_MIP[filter], 
 											    addressConvMap[rwStateCache.texstage[stage].addressingU],
 					                            addressConvMap[rwStateCache.texstage[stage].addressingV], 
-												natras->maxAnisotropy
+												natras->maxAnisotropy, natras->numLevels
 						));
 				} else {
 					alpha = 0;

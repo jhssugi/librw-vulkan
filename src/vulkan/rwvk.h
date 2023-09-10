@@ -357,7 +357,7 @@ namespace rw
 			maple::TextureFormat internalFormat;
 			int32 bpp;        // bytes per pixel
 			// texture object
-			bool isCompressed;
+			bool isCompressed;//in theory, vulkan support compress. but now, we don't use them.
 			bool hasAlpha;
 			bool autogenMipmap;
 			int8 numLevels;
@@ -368,6 +368,8 @@ namespace rw
 			uint8 addressU;
 			uint8 addressV;
 			int32 maxAnisotropy;
+
+			RasterLevels *backingStore; // if we can't read back GPU memory but have to
 		};
 
 		struct VulkanCaps
