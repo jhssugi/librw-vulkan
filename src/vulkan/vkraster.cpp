@@ -93,14 +93,14 @@ namespace rw
 			case Raster::C1555:
 				natras->internalFormat = maple::TextureFormat::R5G5B5A1;
 				natras->hasAlpha = 1;
-				natras->bpp = 2;
-				raster->depth = 16;
+				natras->bpp = 4;
+				raster->depth = 32;
 				break;
 			default: RWERROR((ERR_INVRASTER)); return nil;
 			}
 
 			raster->stride = raster->width * natras->bpp;
-
+			natras->numLevels = 1;
 			if(raster->format & Raster::MIPMAP) {
 				int32_t w = raster->width;
 				int32_t h = raster->height;
@@ -243,14 +243,7 @@ namespace rw
 				if(lockMode & Raster::LOCKREAD || !(lockMode & Raster::LOCKNOFETCH)) {
 
 					auto texture = getTexture(natras->textureId);
-					auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
-					if(cmdBuffer->isRecording()) {
-						texture->copyImage(cmdBuffer, px);
-						cmdBuffer->submit();
-					} else {
-						maple::GraphicsContext::get()->immediateSubmit(
-						    [&](const maple ::CommandBuffer *cmd) { texture->copyImage(cmd, px); });
-					}
+					texture->copyImage(nullptr, px);
 				}
 
 				raster->privateFlags = lockMode;
@@ -267,10 +260,8 @@ namespace rw
 				assert(raster->pixels == nil);
 				raster->pixels = px;
 				{
-					auto cmdBuffer = maple::GraphicsContext::get()->getSwapChain()->getCurrentCommandBuffer();
 					auto texture = maple::GraphicsContext::get()->getSwapChain()->getCurrentImage();
-					texture->copyImage(cmdBuffer, px);
-					cmdBuffer->submit();
+					texture->copyImage(nullptr,px);
 				}
 				raster->privateFlags = lockMode;
 				break;
@@ -445,6 +436,8 @@ namespace rw
 			assert(raster);
 			natras = GET_VULKAN_RASTEREXT(raster);
 			tex->raster = raster;
+
+			getTexture(natras->textureId)->setName(tex->name);
 
 			uint32 size;
 			uint8 *data;

@@ -207,16 +207,20 @@ namespace rw
 
 #include "vkshaders/matfx.shader.h"
 
-			const std::string defaultTxt = { (char*)__matfx_shader, __matfx_shader_len };
+			const std::string defaultTxt = {(char *)__matfx_shader, __matfx_shader_len};
 
-			envShader = Shader::create(defaultTxt,"#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+			envShader = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n");
 			assert(envShader);
-			envShader_noAT = Shader::create(defaultTxt,"#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
+			envShader_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
 			assert(envShader_noAT);
 
-			envShader_fullLight = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n");
+			envShader_fullLight =
+			    Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt,
+			                   "#define FRAGMENT_SHADER\n");
 			assert(envShader_fullLight);
-			envShader_fullLight_noAT = Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt, "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
+			envShader_fullLight_noAT =
+			    Shader::create(defaultTxt, "#define VERTEX_SHADER\n#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", defaultTxt,
+			                   "#define FRAGMENT_SHADER\n #define NO_ALPHATEST\n");
 			assert(envShader_fullLight_noAT);
 
 			return o;
